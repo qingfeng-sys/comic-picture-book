@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook } from '@/types';
+import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel } from '@/types';
 import { createScriptWithSegments, loadScriptsFromStorage, importScriptFromText, extractStoryboardFromScript, saveComicBookToStorage } from '@/lib/scriptUtils';
 import ComicPageCanvas from '@/components/ComicPageCanvas/ComicPageCanvas';
 
@@ -17,6 +17,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   const [generatedPages, setGeneratedPages] = useState<ComicPage[]>([]);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [generationModel, setGenerationModel] = useState<GenerationModel>('gemini-2.5-flash-image');
 
   useEffect(() => {
     const scripts = loadScriptsFromStorage();
@@ -87,6 +88,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           startPageNumber: (selectedSegmentId - 1) * 10 + 1,
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
+          model: generationModel,
         };
       } else {
         // 否则使用文本模式（兼容旧格式）
@@ -96,6 +98,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           startPageNumber: (selectedSegmentId - 1) * 10 + 1,
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
+          model: generationModel,
         };
       }
 
@@ -207,6 +210,56 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
                 </div>
               </div>
             )}
+          </div>
+          
+          {/* 模型选择 */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">选择生成模型</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                  generationModel === 'gemini-2.5-flash-image'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 hover:border-primary-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="generationModel"
+                  value="gemini-2.5-flash-image"
+                  checked={generationModel === 'gemini-2.5-flash-image'}
+                  onChange={() => setGenerationModel('gemini-2.5-flash-image')}
+                  className="mt-1"
+                />
+                <div>
+                  <div className="font-medium text-gray-800">Gemini 2.5 Flash Image</div>
+                  <div className="text-sm text-gray-500">同步返回，速度较快</div>
+                </div>
+              </label>
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                  generationModel === 'kling-v1'
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 hover:border-primary-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="generationModel"
+                  value="kling-v1"
+                  checked={generationModel === 'kling-v1'}
+                  onChange={() => setGenerationModel('kling-v1')}
+                  className="mt-1"
+                />
+                <div>
+                  <div className="font-medium text-gray-800">Kling v1</div>
+                  <div className="text-sm text-gray-500">异步任务，需轮询，质量高但稍慢</div>
+                </div>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Kling 为异步模式，生成时间可能更长，请耐心等待。
+            </p>
           </div>
 
           {/* 脚本片段选择 */}

@@ -4,13 +4,15 @@
  */
 
 import { generateImageWithQiniu } from './qiniu';
-import { StoryboardData, DialogueItem } from '@/types';
+import { StoryboardData, DialogueItem, GenerationModel } from '@/types';
 
 export interface ImageGenerationOptions {
   prompt: string;
   style?: 'cartoon' | 'realistic' | 'anime';
   size?: '256x256' | '512x512' | '1024x1024';
 }
+
+const DEFAULT_MODEL: GenerationModel = 'gemini-2.5-flash-image';
 
 /**
  * 为脚本页面生成图像提示词
@@ -244,7 +246,8 @@ function extractSceneDescription(text: string): string {
 export async function generateComicPageImage(
   pageText: string,
   pageNumber: number,
-  retryCount: number = 0
+  retryCount: number = 0,
+  generationModel: GenerationModel = DEFAULT_MODEL
 ): Promise<string> {
   const prompt = generateImagePrompt(pageText, pageNumber);
   const maxRetries = 2; // 最多重试2次
@@ -257,8 +260,9 @@ export async function generateComicPageImage(
       prompt,
       {
         negative_prompt: '恐怖，暴力，成人内容，低质量，模糊，变形',
-        aspect_ratio: '1:1', // 使用标准1:1比例（七牛云API支持：1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3）
-        human_fidelity: 0.8, // 适中的真实度，保持卡通风格（范围0-1）
+        aspect_ratio: '1:1',
+        human_fidelity: 0.8,
+        model: generationModel,
       }
     );
     
@@ -277,7 +281,7 @@ export async function generateComicPageImage(
       const waitTime = (retryCount + 1) * 2000; // 递增等待时间：2秒、4秒
       console.log(`等待 ${waitTime}ms 后重试...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
-      return generateComicPageImage(pageText, pageNumber, retryCount + 1);
+      return generateComicPageImage(pageText, pageNumber, retryCount + 1, generationModel);
     }
     
     // 所有重试都失败，抛出错误而不是返回占位符
@@ -291,7 +295,8 @@ export async function generateComicPageImage(
  */
 export async function generateComicPagesFromStoryboard(
   storyboardData: StoryboardData,
-  startPageNumber: number = 1
+  startPageNumber: number = 1,
+  generationModel: GenerationModel = DEFAULT_MODEL
 ): Promise<Array<{ pageNumber: number; imageUrl: string; text: string; dialogue?: DialogueItem[]; narration?: string }>> {
   const comicPages = [];
   
@@ -306,7 +311,7 @@ export async function generateComicPagesFromStoryboard(
     
     try {
       // 使用frame的image_prompt生成图片
-      const imageUrl = await generateComicPageImage(frame.image_prompt, pageNumber);
+      const imageUrl = await generateComicPageImage(frame.image_prompt, pageNumber, 0, generationModel);
       
       // 验证URL是否有效
       if (!imageUrl || imageUrl.includes('via.placeholder.com') || imageUrl.includes('placeholder')) {
@@ -354,7 +359,8 @@ export async function generateComicPagesFromStoryboard(
  */
 export async function generateComicPages(
   scriptSegment: string,
-  startPageNumber: number = 1
+  startPageNumber: number = 1,
+  generationModel: GenerationModel = DEFAULT_MODEL
 ): Promise<Array<{ pageNumber: number; imageUrl: string; text: string; dialogue?: string[]; narration?: string }>> {
   // 将脚本片段按页分割
   const pages = splitScriptIntoPages(scriptSegment);
@@ -368,7 +374,7 @@ export async function generateComicPages(
     const dialogue = extractDialogue(pageText);
     const narration = extractNarration(pageText);
     
-    const imageUrl = await generateComicPageImage(pageText, pageNumber);
+    const imageUrl = await generateComicPageImage(pageText, pageNumber, 0, generationModel);
     
     comicPages.push({
       pageNumber,

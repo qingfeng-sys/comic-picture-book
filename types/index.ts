@@ -18,6 +18,9 @@ export interface ScriptWithSegments extends Script {
   totalSegments: number;
 }
 
+// 文生图模型
+export type GenerationModel = 'gemini-2.5-flash-image' | 'kling-v1';
+
 // 对话消息类型
 export interface ChatMessage {
   role: 'user' | 'assistant';

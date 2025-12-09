@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId } = body;
+    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model } = body;
 
     let pages;
     
@@ -44,14 +44,16 @@ export async function POST(request: NextRequest) {
       console.log('使用分镜数据生成绘本，共', storyboard.frames.length, '帧');
       pages = await generateComicPagesFromStoryboard(
         storyboard as StoryboardData,
-        startPageNumber || 1
+        startPageNumber || 1,
+        model
       );
     } else if (scriptSegment && typeof scriptSegment === 'string') {
       // 兼容旧格式：从文本提取
       console.log('使用文本脚本生成绘本');
       pages = await generateComicPages(
         scriptSegment,
-        startPageNumber || 1
+        startPageNumber || 1,
+        model
       );
     } else {
       return NextResponse.json(
