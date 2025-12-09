@@ -87,3 +87,4 @@ Write-Host "3. 如果防火墙规则创建失败，请以管理员身份运行�
 Write-Host "4. 或者手动在 Windows 防火墙中添加端口 3000 的入站规则" -ForegroundColor White
 Write-Host ""
 
+

@@ -85,3 +85,4 @@ Write-Host "   - 防火墙是否允许连接（可能需要管理员权限）" -
 Write-Host "   - 路由器是否阻止了设备间通信" -ForegroundColor Gray
 Write-Host ""
 
+
