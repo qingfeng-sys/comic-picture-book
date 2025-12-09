@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply text-gray-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-soft-pink-400 to-soft-purple-400 hover:from-soft-pink-500 hover:to-soft-purple-500 text-white font-medium py-2.5 px-6 rounded-full transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105;
+  }
+  
+  .btn-secondary {
+    @apply bg-white hover:bg-soft-pink-50 text-gray-700 font-medium py-2.5 px-6 rounded-full border-2 border-soft-pink-200 transition-all duration-200;
+  }
+  
+  .card {
+    @apply bg-white rounded-2xl shadow-lg p-6 border-2 border-soft-pink-100;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-2.5 border-2 border-soft-pink-200 rounded-full focus:ring-2 focus:ring-soft-pink-400 focus:border-soft-pink-400 outline-none transition-all bg-soft-pink-50;
+  }
+  
+  .textarea-field {
+    @apply w-full px-4 py-2.5 border-2 border-soft-pink-200 rounded-2xl focus:ring-2 focus:ring-soft-pink-400 focus:border-soft-pink-400 outline-none transition-all resize-none bg-soft-pink-50;
+  }
+
+  /* 动漫风格动画 */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.5); }
+    50% { box-shadow: 0 0 30px rgba(236, 72, 153, 0.8), 0 0 40px rgba(168, 85, 247, 0.6); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+  }
+}
+
