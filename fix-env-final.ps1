@@ -13,7 +13,7 @@ Write-Host ""
 # 步骤1: 创建/更新 .env.local 文件
 Write-Host "步骤1: 创建/更新 .env.local 文件..." -ForegroundColor Yellow
 
-$content = "DEEPSEEK_API_KEY=sk-7184f5ee339047b98aff5b1d7d1e2b81`nQINIU_API_KEY=sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcabe"
+$content = "DEEPSEEK_API_KEY=your_deepseek_api_key_here`nQINIU_API_KEY=your_qiniu_api_key_here"
 
 try {
     # 使用 UTF8 无 BOM 编码
@@ -33,7 +33,7 @@ if (Test-Path $envFilePath) {
     Write-Host "`n文件内容:" -ForegroundColor Cyan
     Write-Host $fileContent -ForegroundColor White
     
-    if ($fileContent -match "QINIU_API_KEY\s*=\s*sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcabe") {
+    if ($fileContent -match "QINIU_API_KEY\s*=\s*sk-") {
         Write-Host "`n✓ QINIU_API_KEY 配置正确" -ForegroundColor Green
     } else {
         Write-Host "`n✗ QINIU_API_KEY 配置不正确" -ForegroundColor Red

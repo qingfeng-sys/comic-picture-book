@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { saveImageToStorage } from '@/lib/imageStorage';
+import { assertApiKey, validationError, unauthorizedError, maskServerError } from '@/lib/apiAuth';
 
 function setCorsHeaders(response: NextResponse, request?: NextRequest) {
   if (process.env.NODE_ENV === 'development') {
@@ -23,21 +25,20 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { imageUrl, pageNumber, scriptId, segmentId } = body;
+    assertApiKey(request);
 
-    if (!imageUrl || pageNumber === undefined) {
-      return setCorsHeaders(
-        NextResponse.json(
-          {
-            success: false,
-            error: '缺少必要参数: imageUrl, pageNumber',
-          },
-          { status: 400 }
-        ),
-        request
-      );
+    const schema = z.object({
+      imageUrl: z.string().min(1),
+      pageNumber: z.number().int(),
+      scriptId: z.string().optional(),
+      segmentId: z.number().int().optional(),
+    });
+    const parseResult = schema.safeParse(await request.json());
+    if (!parseResult.success) {
+      return setCorsHeaders(validationError(), request);
     }
+
+    const { imageUrl, pageNumber, scriptId, segmentId } = parseResult.data;
 
     const result = await saveImageToStorage(
       imageUrl,
@@ -54,16 +55,10 @@ export async function POST(request: NextRequest) {
       request
     );
   } catch (error: any) {
-    console.error('保存图片失败:', error);
-    return setCorsHeaders(
-      NextResponse.json(
-        {
-          success: false,
-          error: error.message || '保存图片失败',
-        },
-        { status: 500 }
-      ),
-      request
-    );
+    console.error('保存图片失败:', error?.message || error);
+    if (error?.status === 401) {
+      return unauthorizedError();
+    }
+    return setCorsHeaders(maskServerError('保存图片失败，请稍后重试'), request);
   }
 }

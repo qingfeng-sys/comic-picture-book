@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cleanupExpiredImages } from '@/lib/imageStorage';
+import { assertApiKey, unauthorizedError, maskServerError } from '@/lib/apiAuth';
 
 function setCorsHeaders(response: NextResponse, request?: NextRequest) {
   if (process.env.NODE_ENV === 'development') {
@@ -23,6 +24,7 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    assertApiKey(request);
     const deletedCount = await cleanupExpiredImages();
 
     return setCorsHeaders(
@@ -36,16 +38,10 @@ export async function GET(request: NextRequest) {
       request
     );
   } catch (error: any) {
-    console.error('清理过期图片失败:', error);
-    return setCorsHeaders(
-      NextResponse.json(
-        {
-          success: false,
-          error: error.message || '清理失败',
-        },
-        { status: 500 }
-      ),
-      request
-    );
+    console.error('清理过期图片失败:', error?.message || error);
+    if (error?.status === 401) {
+      return unauthorizedError();
+    }
+    return setCorsHeaders(maskServerError('清理失败，请稍后重试'), request);
   }
 }

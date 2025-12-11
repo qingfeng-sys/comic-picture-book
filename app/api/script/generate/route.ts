@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { generateScriptWithDeepSeek, generateStoryboardWithDeepSeek, continueConversation, DeepSeekMessage } from '@/lib/deepseek';
 import { StoryboardData } from '@/types';
+import { assertApiKey, validationError, unauthorizedError, maskServerError } from '@/lib/apiAuth';
 
 // CORS 头设置（用于开发环境网络访问）
 function setCorsHeaders(response: NextResponse, request?: NextRequest) {
@@ -28,8 +30,27 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { prompt, conversationHistory, outputFormat } = body;
+    assertApiKey(request);
+
+    const schema = z.object({
+      prompt: z.string().min(1),
+      conversationHistory: z
+        .array(
+          z.object({
+            role: z.enum(['user', 'assistant', 'system']),
+            content: z.string(),
+          })
+        )
+        .optional(),
+      outputFormat: z.enum(['script', 'storyboard']).optional(),
+    });
+
+    const parseResult = schema.safeParse(await request.json());
+    if (!parseResult.success) {
+      return validationError();
+    }
+
+    const { prompt, conversationHistory, outputFormat } = parseResult.data;
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
@@ -91,15 +112,11 @@ export async function POST(request: NextRequest) {
       return setCorsHeaders(response, request);
     }
   } catch (error: any) {
-    console.error('脚本生成失败:', error);
-    const response = NextResponse.json(
-      {
-        success: false,
-        error: error.message || '脚本生成失败，请稍后重试',
-      },
-      { status: 500 }
-    );
-    return setCorsHeaders(response, request);
+    console.error('脚本生成失败:', error?.message || error);
+    if (error?.status === 401) {
+      return unauthorizedError();
+    }
+    return setCorsHeaders(maskServerError(), request);
   }
 }
 

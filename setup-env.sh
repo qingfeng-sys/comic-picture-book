@@ -15,7 +15,7 @@ fi
 
 cat > "$ENV_FILE" << 'EOF'
 # DeepSeek API配置
-DEEPSEEK_API_KEY=sk-7184f5ee339047b98aff5b1d7d1e2b81
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 # OpenAI API配置（用于图像生成，可选）
 # OPENAI_API_KEY=your_openai_api_key_here

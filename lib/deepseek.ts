@@ -2,6 +2,22 @@ import axios from 'axios';
 import { StoryboardData } from '@/types';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const REQUEST_TIMEOUT_MS = 10_000;
+const RETRY_TIMES = 2;
+
+async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      if (attempt === retries) break;
+      await new Promise(res => setTimeout(res, 300 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
 
 export interface DeepSeekMessage {
   role: 'user' | 'assistant' | 'system';
@@ -35,21 +51,10 @@ export async function generateScriptWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
 ): Promise<string> {
-  // 调试信息：检查环境变量
-  console.log('=== 环境变量调试信息 ===');
-  console.log('process.env.DEEPSEEK_API_KEY:', process.env.DEEPSEEK_API_KEY ? '已设置' : '未设置');
-  console.log('所有环境变量键:', Object.keys(process.env).filter(k => k.includes('DEEPSEEK')));
-  console.log('当前工作目录:', process.cwd());
-  console.log('========================');
-  
-  // 优先使用环境变量，如果没有则使用后备密钥（临时解决方案）
-  const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-7184f5ee339047b98aff5b1d7d1e2b81';
-  
+  const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY环境变量未设置，请在.env.local文件中配置API密钥');
+    throw new Error('DEEPSEEK_API_KEY未配置');
   }
-  
-  console.log('使用API密钥:', apiKey.substring(0, 10) + '...' + (apiKey.length > 20 ? apiKey.substring(apiKey.length - 4) : ''));
 
   // 优化系统提示词，让AI生成更适合漫画绘本的脚本
   const systemPrompt = `你是一个专业的故事脚本创作助手，专门为漫画绘本创作故事脚本。
@@ -77,24 +82,24 @@ export async function generateScriptWithDeepSeek(
   ];
 
   try {
-    console.log('正在调用DeepSeek API生成脚本...');
-    
-    const response = await axios.post<DeepSeekResponse>(
-      DEEPSEEK_API_URL,
-      {
-        model: 'deepseek-chat',
-        messages: messages,
-        temperature: 0.8, // 提高创造性
-        max_tokens: 3000, // 增加最大token数，确保生成完整脚本
-        stream: false,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+    const response = await withRetry(() =>
+      axios.post<DeepSeekResponse>(
+        DEEPSEEK_API_URL,
+        {
+          model: 'deepseek-chat',
+          messages: messages,
+          temperature: 0.8,
+          max_tokens: 3000,
+          stream: false,
         },
-        timeout: 60000, // 60秒超时
-      }
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          timeout: REQUEST_TIMEOUT_MS,
+        }
+      )
     );
 
     // 检查响应数据
@@ -107,38 +112,10 @@ export async function generateScriptWithDeepSeek(
       throw new Error('API返回内容为空');
     }
 
-    // 记录token使用情况
-    if (response.data.usage) {
-      console.log('Token使用情况:', response.data.usage);
-    }
-
-    console.log('脚本生成成功，长度:', content.length, '字符');
     return content.trim();
   } catch (error: any) {
-    console.error('DeepSeek API调用失败:', error);
-    
-    // 更详细的错误处理
-    if (error.response) {
-      // API返回了错误响应
-      const status = error.response.status;
-      const errorData = error.response.data;
-      
-      if (status === 401) {
-        throw new Error('API密钥无效，请检查DEEPSEEK_API_KEY是否正确');
-      } else if (status === 429) {
-        throw new Error('API调用频率过高，请稍后再试');
-      } else if (status === 500) {
-        throw new Error('DeepSeek服务器错误，请稍后重试');
-      } else {
-        throw new Error(`API错误 (${status}): ${errorData?.error?.message || '未知错误'}`);
-      }
-    } else if (error.request) {
-      // 请求已发送但没有收到响应
-      throw new Error('无法连接到DeepSeek API，请检查网络连接');
-    } else {
-      // 其他错误
-      throw new Error(`请求配置错误: ${error.message}`);
-    }
+    console.error('DeepSeek API调用失败:', error?.message || error);
+    throw new Error('脚本生成服务暂时不可用，请稍后再试');
   }
 }
 
@@ -149,14 +126,9 @@ export async function generateStoryboardWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
 ): Promise<StoryboardData> {
-  // 调试信息：检查环境变量
-  console.log('=== 生成结构化分镜 ===');
-  console.log('process.env.DEEPSEEK_API_KEY:', process.env.DEEPSEEK_API_KEY ? '已设置' : '未设置');
-  
-  const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-7184f5ee339047b98aff5b1d7d1e2b81';
-  
+  const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY环境变量未设置，请在.env.local文件中配置API密钥');
+    throw new Error('DEEPSEEK_API_KEY未配置');
   }
 
   // 系统提示词：强制输出纯JSON，不允许任何自然语言
@@ -240,25 +212,24 @@ export async function generateStoryboardWithDeepSeek(
   ];
 
   try {
-    console.log('正在调用DeepSeek API生成分镜数据...');
-    
-    const response = await axios.post<DeepSeekResponse>(
-      DEEPSEEK_API_URL,
-      {
-        model: 'deepseek-chat',
-        messages: messages,
-        temperature: 0.7, // 降低温度，确保JSON格式准确
-        max_tokens: 4000,
-        stream: false,
-        // 注意：DeepSeek API可能不支持response_format参数，通过prompt强制JSON输出
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+    const response = await withRetry(() =>
+      axios.post<DeepSeekResponse>(
+        DEEPSEEK_API_URL,
+        {
+          model: 'deepseek-chat',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 4000,
+          stream: false,
         },
-        timeout: 60000,
-      }
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          timeout: REQUEST_TIMEOUT_MS,
+        }
+      )
     );
 
     if (!response.data || !response.data.choices || response.data.choices.length === 0) {
@@ -342,29 +313,10 @@ export async function generateStoryboardWithDeepSeek(
       });
     });
 
-    console.log(`分镜生成成功，共${storyboardData.frames.length}帧`);
     return storyboardData;
   } catch (error: any) {
-    console.error('分镜生成失败:', error);
-    
-    if (error.response) {
-      const status = error.response.status;
-      const errorData = error.response.data;
-      
-      if (status === 401) {
-        throw new Error('API密钥无效，请检查DEEPSEEK_API_KEY是否正确');
-      } else if (status === 429) {
-        throw new Error('API调用频率过高，请稍后再试');
-      } else if (status === 500) {
-        throw new Error('DeepSeek服务器错误，请稍后重试');
-      } else {
-        throw new Error(`API错误 (${status}): ${errorData?.error?.message || '未知错误'}`);
-      }
-    } else if (error.request) {
-      throw new Error('无法连接到DeepSeek API，请检查网络连接');
-    } else {
-      throw error; // 重新抛出解析错误等
-    }
+    console.error('分镜生成失败:', error?.message || error);
+    throw new Error('分镜生成服务暂时不可用，请稍后再试');
   }
 }
 
@@ -388,37 +340,30 @@ export async function continueConversation(
     { role: 'user', content: userMessage },
   ];
 
-  // 调试信息：检查环境变量
-  console.log('=== 环境变量调试信息（继续对话） ===');
-  console.log('process.env.DEEPSEEK_API_KEY:', process.env.DEEPSEEK_API_KEY ? '已设置' : '未设置');
-  console.log('====================================');
-  
-  // 优先使用环境变量，如果没有则使用后备密钥（临时解决方案）
-  const apiKey = process.env.DEEPSEEK_API_KEY || 'sk-7184f5ee339047b98aff5b1d7d1e2b81';
-  
+  const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY环境变量未设置');
+    throw new Error('DEEPSEEK_API_KEY未配置');
   }
 
   try {
-    console.log('继续对话，完善脚本...');
-    
-    const response = await axios.post<DeepSeekResponse>(
-      DEEPSEEK_API_URL,
-      {
-        model: 'deepseek-chat',
-        messages: messages,
-        temperature: 0.8,
-        max_tokens: 3000,
-        stream: false,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+    const response = await withRetry(() =>
+      axios.post<DeepSeekResponse>(
+        DEEPSEEK_API_URL,
+        {
+          model: 'deepseek-chat',
+          messages: messages,
+          temperature: 0.8,
+          max_tokens: 3000,
+          stream: false,
         },
-        timeout: 60000,
-      }
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          timeout: REQUEST_TIMEOUT_MS,
+        }
+      )
     );
 
     if (!response.data || !response.data.choices || response.data.choices.length === 0) {
@@ -430,27 +375,10 @@ export async function continueConversation(
       throw new Error('API返回内容为空');
     }
 
-    console.log('脚本完善成功');
     return content.trim();
   } catch (error: any) {
-    console.error('对话失败:', error);
-    
-    if (error.response) {
-      const status = error.response.status;
-      const errorData = error.response.data;
-      
-      if (status === 401) {
-        throw new Error('API密钥无效，请检查DEEPSEEK_API_KEY是否正确');
-      } else if (status === 429) {
-        throw new Error('API调用频率过高，请稍后再试');
-      } else {
-        throw new Error(`API错误 (${status}): ${errorData?.error?.message || '未知错误'}`);
-      }
-    } else if (error.request) {
-      throw new Error('无法连接到DeepSeek API，请检查网络连接');
-    } else {
-      throw new Error(`请求配置错误: ${error.message}`);
-    }
+    console.error('对话失败:', error?.message || error);
+    throw new Error('脚本生成服务暂时不可用，请稍后重试');
   }
 }
 

@@ -24,10 +24,10 @@ chmod +x setup-env.sh
 
 ```env
 # DeepSeek API配置（用于生成故事脚本）
-DEEPSEEK_API_KEY=sk-7184f5ee339047b98aff5b1d7d1e2b81
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 
 # 七牛云API配置（用于生成绘本图像）
-QINIU_API_KEY=sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcabe
+QINIU_API_KEY=your_qiniu_api_key_here
 
 # OpenAI API配置（用于图像生成，可选，已使用七牛云）
 # OPENAI_API_KEY=your_openai_api_key_here
@@ -40,7 +40,7 @@ QINIU_API_KEY=sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcab
 ### 1. DeepSeek API密钥
 应用的核心功能需要DeepSeek API来生成故事脚本。
 
-**已配置的API密钥：** `sk-7184f5ee339047b98aff5b1d7d1e2b81`
+**已配置的API密钥：** *请在部署环境配置，勿在仓库中存放*
 
 如果使用其他API密钥，请：
 1. 访问 [DeepSeek官网](https://www.deepseek.com/) 注册账号
@@ -50,7 +50,7 @@ QINIU_API_KEY=sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcab
 ### 2. 七牛云API密钥（用于图像生成）
 应用使用七牛云文生图API（kling-v1模型）来生成绘本图像。
 
-**已配置的API密钥：** `sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcabe`
+**已配置的API密钥：** *请在部署环境配置，勿在仓库中存放*
 
 **API信息：**
 - API接入点：`https://api.qnaigc.com/v1`

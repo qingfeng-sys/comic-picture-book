@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { generateComicPages, generateComicPagesFromStoryboard } from '@/lib/imageGenerator';
 import { saveImageToStorage } from '@/lib/imageStorage';
-import { StoryboardData } from '@/types';
+import { StoryboardData, DialogueItem } from '@/types';
+import { assertApiKey, validationError, unauthorizedError, maskServerError } from '@/lib/apiAuth';
 
 // CORS 头设置（用于开发环境网络访问）
 function setCorsHeaders(response: NextResponse, request?: NextRequest) {
@@ -28,14 +30,40 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  // 调试信息：检查环境变量
-  console.log('=== API路由环境变量调试 ===');
-  console.log('process.env.QINIU_API_KEY:', process.env.QINIU_API_KEY ? '已设置 (' + process.env.QINIU_API_KEY.substring(0, 10) + '...)' : '未设置');
-  console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
-  
   try {
-    const body = await request.json();
-    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model } = body;
+    assertApiKey(request);
+    const dialogueSchema: z.ZodType<DialogueItem> = z.object({
+      role: z.string(),
+      text: z.string(),
+      anchor: z.enum(['left', 'right', 'center']),
+      x_ratio: z.number().min(0).max(1),
+      y_ratio: z.number().min(0).max(1),
+    });
+    const storyboardSchema: z.ZodType<StoryboardData> = z.object({
+      frames: z.array(
+        z.object({
+          frame_id: z.number(),
+          image_prompt: z.string(),
+          dialogues: z.array(dialogueSchema),
+          narration: z.string().optional(),
+        })
+      ),
+    });
+    const schema = z.object({
+      scriptSegment: z.string().optional(),
+      storyboard: storyboardSchema.optional(),
+      startPageNumber: z.number().int().positive().optional(),
+      scriptId: z.string().optional(),
+      segmentId: z.number().int().optional(),
+      model: z.string().optional(),
+    });
+
+    const parseResult = schema.safeParse(await request.json());
+    if (!parseResult.success) {
+      return setCorsHeaders(validationError(), request);
+    }
+
+    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model } = parseResult.data;
 
     let pages;
     
@@ -97,15 +125,11 @@ export async function POST(request: NextRequest) {
     });
     return setCorsHeaders(response, request);
   } catch (error: any) {
-    console.error('绘本生成失败:', error);
-    const response = NextResponse.json(
-      {
-        success: false,
-        error: error.message || '绘本生成失败，请稍后重试',
-      },
-      { status: 500 }
-    );
-    return setCorsHeaders(response, request);
+    console.error('绘本生成失败:', error?.message || error);
+    if (error?.status === 401) {
+      return unauthorizedError();
+    }
+    return setCorsHeaders(maskServerError('绘本生成服务暂时不可用，请稍后再试'), request);
   }
 }
 

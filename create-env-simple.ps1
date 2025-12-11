@@ -1,8 +1,8 @@
 # 简单创建 .env.local 文件
 $file = ".env.local"
 $content = @"
-DEEPSEEK_API_KEY=sk-7184f5ee339047b98aff5b1d7d1e2b81
-QINIU_API_KEY=sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcabe
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
+QINIU_API_KEY=your_qiniu_api_key_here
 "@
 
 $content | Out-File -FilePath $file -Encoding ASCII -NoNewline

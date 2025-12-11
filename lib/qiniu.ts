@@ -3,6 +3,27 @@ import { GenerationModel } from '@/types';
 
 const QINIU_API_BASE = 'https://api.qnaigc.com/v1';
 const DEFAULT_MODEL: GenerationModel = 'gemini-2.5-flash-image';
+const REQUEST_TIMEOUT_MS = 10_000;
+const RETRY_TIMES = 2;
+
+const http = axios.create({
+  baseURL: QINIU_API_BASE,
+  timeout: REQUEST_TIMEOUT_MS,
+});
+
+async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      if (attempt === retries) break;
+      await new Promise(res => setTimeout(res, 300 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
 
 export interface QiniuImageGenerationRequest {
   model?: string;  // 模型ID，例如 'kling-v1'（兼容OpenAI格式，使用小写）
@@ -87,17 +108,8 @@ function resolveQiniuApiKey(): string {
     apiKey = (process.env as any).QINIU_API_KEY;
   }
 
-  if (!apiKey && process.env.NODE_ENV === 'development') {
-    console.warn('⚠️ 环境变量未加载，使用临时默认值（仅开发环境）');
-    apiKey = 'sk-164c03ec2bcc2dbbb82bbf703ceb8dd334c97b75cddf933e68cfc753803fcabe';
-  }
-
   if (!apiKey) {
-    throw new Error('QINIU_API_KEY环境变量未设置，请在.env.local文件中配置API密钥');
-  }
-
-  if (!apiKey.startsWith('sk-')) {
-    console.warn('⚠️ API密钥格式可能不正确（通常以 sk- 开头）');
+    throw new Error('QINIU_API_KEY未配置');
   }
 
   return apiKey;
@@ -117,17 +129,18 @@ export async function verifyQiniuApiKey(apiKey: string): Promise<boolean> {
       human_fidelity: 1,
     };
     
-    const response = await axios.post(
-      `${QINIU_API_BASE}/images/generations`,
-      testRequestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        timeout: 10000, // 10秒超时
-        validateStatus: (status) => status < 500, // 接受400和401等错误，但不接受500
-      }
+    const response = await withRetry(() =>
+      http.post(
+        '/images/generations',
+        testRequestBody,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          validateStatus: (status) => status < 500,
+        }
+      )
     );
     
     // 如果返回401，说明密钥无效
@@ -238,16 +251,17 @@ export async function submitQiniuImageTask(
   try {
     console.log(`正在提交七牛云文生图任务，模型: ${model}`);
 
-    const response = await axios.post<QiniuTaskResponse>(
-      `${QINIU_API_BASE}/images/generations`,
-      requestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        timeout: 30000,
-      }
+    const response = await withRetry(() =>
+      http.post<QiniuTaskResponse>(
+        '/images/generations',
+        requestBody,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+        }
+      )
     );
 
     const responseData = response.data as any;
@@ -323,38 +337,14 @@ export async function submitQiniuImageTask(
 
     throw new Error('API响应格式错误：无法找到图片URL或task_id。');
   } catch (error: any) {
-    console.error('七牛云API调用失败:', error);
-
-    if (error.response) {
-      const statusCode = error.response.status;
-      const errorData = error.response.data;
-
-      if (statusCode === 400) {
-        const errorObj = errorData?.error || errorData;
-        const errorMsg =
-          (errorObj && typeof errorObj === 'object' && (errorObj.message || errorObj.type)) ||
-          errorData?.message ||
-          JSON.stringify(errorData);
-
-        throw new Error(
-          `请求参数错误 (400): ${errorMsg}\n提示词长度: ${finalPrompt.length}字符\n请检查请求参数格式是否正确。`
-        );
-      } else if (statusCode === 401) {
-        throw new Error('API密钥无效，请检查QINIU_API_KEY是否正确');
-      } else if (statusCode === 429) {
-        throw new Error('API调用频率过高，请稍后再试');
-      } else if (statusCode === 500) {
-        throw new Error('七牛云服务器错误，请稍后重试');
-      } else {
-        throw new Error(`API错误 (${statusCode}): ${errorData?.message || JSON.stringify(errorData)}`);
-      }
-    } else if (error.request) {
-      throw new Error('无法连接到七牛云API，请检查网络连接');
-    } else if (error.message) {
-      throw error;
-    } else {
-      throw new Error(`请求配置错误: ${error.message || JSON.stringify(error)}`);
+    console.error('七牛云API调用失败:', error?.message || error);
+    if (error.response?.status === 400) {
+      throw new Error('图像生成请求参数无效');
     }
+    if (error.response?.status === 401) {
+      throw new Error('图像生成服务未授权，请检查密钥配置');
+    }
+    throw new Error('图像生成服务暂时不可用，请稍后重试');
   }
 }
 
@@ -365,15 +355,16 @@ export async function getQiniuTaskResult(taskId: string): Promise<{ status: stri
   const apiKey = resolveQiniuApiKey();
 
   try {
-    const response = await axios.get<QiniuTaskResult>(
-      `${QINIU_API_BASE}/images/tasks/${taskId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      }
+    const response = await withRetry(() =>
+      http.get<QiniuTaskResult>(
+        `/images/tasks/${taskId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
     );
 
     const data = response.data;
