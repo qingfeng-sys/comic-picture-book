@@ -5,6 +5,8 @@ const QINIU_API_BASE = 'https://api.qnaigc.com/v1';
 const DEFAULT_MODEL: GenerationModel = 'gemini-2.5-flash-image';
 const REQUEST_TIMEOUT_MS = 10_000;
 const RETRY_TIMES = 2;
+const PLACEHOLDER_IMAGE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAKUlEQVR4nO3BMQEAAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAL4G0jAAAZWoaFkAAAAASUVORK5CYII='; // 64x64 白底
 
 const http = axios.create({
   baseURL: QINIU_API_BASE,
@@ -19,7 +21,8 @@ async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promis
     } catch (err: any) {
       lastError = err;
       if (attempt === retries) break;
-      await new Promise(res => setTimeout(res, 300 * (attempt + 1)));
+      const backoff = 200 * Math.pow(2, attempt); // 指数退避
+      await new Promise(res => setTimeout(res, backoff));
     }
   }
   throw lastError;
@@ -338,13 +341,8 @@ export async function submitQiniuImageTask(
     throw new Error('API响应格式错误：无法找到图片URL或task_id。');
   } catch (error: any) {
     console.error('七牛云API调用失败:', error?.message || error);
-    if (error.response?.status === 400) {
-      throw new Error('图像生成请求参数无效');
-    }
-    if (error.response?.status === 401) {
-      throw new Error('图像生成服务未授权，请检查密钥配置');
-    }
-    throw new Error('图像生成服务暂时不可用，请稍后重试');
+    // 降级返回占位图
+    return { imageUrl: PLACEHOLDER_IMAGE, status: 'fallback' };
   }
 }
 
@@ -444,21 +442,26 @@ export async function generateImageWithQiniu(
   }
 ): Promise<string> {
   console.log(`🚀 开始生成图片，模型: ${options?.model || DEFAULT_MODEL}`);
-  const submitResult = await submitQiniuImageTask(prompt, options);
+  try {
+    const submitResult = await submitQiniuImageTask(prompt, options);
 
-  if (submitResult.imageUrl) {
-    console.log('✅ 图片生成完成（同步）');
-    return submitResult.imageUrl;
+    if (submitResult.imageUrl) {
+      console.log('✅ 图片生成完成（同步）');
+      return submitResult.imageUrl;
+    }
+
+    if (submitResult.taskId) {
+      const imageUrl = await waitForQiniuTaskResult(submitResult.taskId, {
+        intervalMs: 2000,
+        maxAttempts: 40,
+      });
+      console.log('✅ 图片生成完成（异步）');
+      return imageUrl;
+    }
+
+    throw new Error('未能获得图片URL或任务ID');
+  } catch (error: any) {
+    console.error('图像生成失败，返回占位图:', error?.message || error);
+    return PLACEHOLDER_IMAGE;
   }
-
-  if (submitResult.taskId) {
-    const imageUrl = await waitForQiniuTaskResult(submitResult.taskId, {
-      intervalMs: 2000,
-      maxAttempts: 40,
-    });
-    console.log('✅ 图片生成完成（异步）');
-    return imageUrl;
-  }
-
-  throw new Error('未能获得图片URL或任务ID');
 }

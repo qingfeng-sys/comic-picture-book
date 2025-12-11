@@ -13,7 +13,8 @@ async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promis
     } catch (err: any) {
       lastError = err;
       if (attempt === retries) break;
-      await new Promise(res => setTimeout(res, 300 * (attempt + 1)));
+      const backoff = 200 * Math.pow(2, attempt); // 指数退避
+      await new Promise(res => setTimeout(res, backoff));
     }
   }
   throw lastError;
@@ -115,7 +116,7 @@ export async function generateScriptWithDeepSeek(
     return content.trim();
   } catch (error: any) {
     console.error('DeepSeek API调用失败:', error?.message || error);
-    throw new Error('脚本生成服务暂时不可用，请稍后再试');
+    return 'AI 当前繁忙，请稍后再试';
   }
 }
 
@@ -316,7 +317,16 @@ export async function generateStoryboardWithDeepSeek(
     return storyboardData;
   } catch (error: any) {
     console.error('分镜生成失败:', error?.message || error);
-    throw new Error('分镜生成服务暂时不可用，请稍后再试');
+    return {
+      frames: [
+        {
+          frame_id: 1,
+          image_prompt: 'AI 当前繁忙，请稍后再试',
+          dialogues: [],
+          narration: 'AI 当前繁忙，请稍后再试',
+        },
+      ],
+    };
   }
 }
 
@@ -378,7 +388,7 @@ export async function continueConversation(
     return content.trim();
   } catch (error: any) {
     console.error('对话失败:', error?.message || error);
-    throw new Error('脚本生成服务暂时不可用，请稍后重试');
+    return 'AI 当前繁忙，请稍后再试';
   }
 }
 
