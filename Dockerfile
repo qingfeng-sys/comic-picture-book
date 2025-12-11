@@ -10,8 +10,9 @@ RUN npm ci
 
 FROM deps AS builder
 COPY . .
-# 如需在构建时注入变量，请提供 .env.production
-COPY .env.production .env.production
+ARG ENV_FILE=.env.production
+# 如果未提供真实的 .env.production，则使用示例文件，避免构建失败
+RUN if [ -f "$ENV_FILE" ]; then cp "$ENV_FILE" .env.production; else cp config/env.production.example .env.production; fi
 ENV NODE_ENV=production
 RUN npm run build
 
