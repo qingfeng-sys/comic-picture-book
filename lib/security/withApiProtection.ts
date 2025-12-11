@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from './rateLimiter';
 import { applyCors } from './corsHandler';
 import { checkApiKey } from './apiAuth';
+import { logger } from '@/lib/logger';
+import { handleApiError } from '@/app/api/_error';
 
 type Handler = (request: NextRequest) => Promise<NextResponse> | NextResponse;
 
@@ -12,6 +14,8 @@ export interface ProtectionOptions {
 export function withApiProtection(handler: Handler, options?: ProtectionOptions) {
   return async function (request: NextRequest) {
     const started = Date.now();
+    const ip = request.headers.get('x-forwarded-for') || (request as any).ip || 'unknown';
+    const contentLength = request.headers.get('content-length');
 
     // CORS preflight
     if (request.method === 'OPTIONS') {
@@ -34,18 +38,35 @@ export function withApiProtection(handler: Handler, options?: ProtectionOptions)
       applyCors(request, res);
       const cost = Date.now() - started;
       res.headers.set('X-Response-Time', `${cost}ms`);
+      res.headers.set('X-Request-Id', request.headers.get('x-request-id') || '');
+
+      logger.info(
+        {
+          method: request.method,
+          path: request.nextUrl?.pathname,
+          status: res.status,
+          ip,
+          contentLength,
+          durationMs: cost,
+        },
+        'api_request'
+      );
       return res;
     } catch (error: any) {
-      const res = NextResponse.json(
-        { success: false, error: '服务暂时不可用，请稍后重试' },
-        { status: 500 }
-      );
-      applyCors(request, res);
-      console.error('[API_ERROR]', request.url, error?.message || error);
-      return res;
+      const response = handleApiError(request, error);
+      applyCors(request, response);
+      return response;
     } finally {
       const cost = Date.now() - started;
-      console.log(`[API] ${request.method} ${request.nextUrl.pathname} - ${cost}ms`);
+      logger.debug(
+        {
+          method: request.method,
+          path: request.nextUrl?.pathname,
+          ip,
+          durationMs: cost,
+        },
+        'api_request_end'
+      );
     }
   };
 }

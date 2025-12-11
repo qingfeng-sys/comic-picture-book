@@ -3,7 +3,7 @@ import { cleanupExpiredImages } from '@/lib/imageStorage';
 import { maskServerError } from '@/lib/apiAuth';
 import { withApiProtection } from '@/lib/security/withApiProtection';
 
-async function getHandler(_request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const deletedCount = await cleanupExpiredImages();
 
@@ -15,8 +15,7 @@ async function getHandler(_request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('清理过期图片失败:', error?.message || error);
-    return maskServerError('清理失败，请稍后重试');
+    return maskServerError('清理失败，请稍后重试', request);
   }
 }
 
