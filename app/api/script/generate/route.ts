@@ -2,36 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateScriptWithDeepSeek, generateStoryboardWithDeepSeek, continueConversation, DeepSeekMessage } from '@/lib/deepseek';
 import { StoryboardData } from '@/types';
-import { assertApiKey, validationError, unauthorizedError, maskServerError } from '@/lib/apiAuth';
+import { validationError, maskServerError } from '@/lib/apiAuth';
+import { withApiProtection } from '@/lib/security/withApiProtection';
 
-// CORS 头设置（用于开发环境网络访问）
-function setCorsHeaders(response: NextResponse, request?: NextRequest) {
-  if (process.env.NODE_ENV === 'development') {
-    // 开发环境：允许所有来源（用于局域网访问）
-    // 注意：如果设置了 credentials，origin 不能是 '*'，必须使用具体 origin
-    const origin = request?.headers.get('origin');
-    if (origin) {
-      response.headers.set('Access-Control-Allow-Origin', origin);
-      response.headers.set('Access-Control-Allow-Credentials', 'true');
-    } else {
-      // 如果没有 origin 头（同源请求），允许所有来源
-      response.headers.set('Access-Control-Allow-Origin', '*');
-    }
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
-  }
-  return response;
-}
-
-export async function OPTIONS(request: NextRequest) {
-  const response = new NextResponse(null, { status: 200 });
-  return setCorsHeaders(response, request);
-}
-
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
-    assertApiKey(request);
-
     const schema = z.object({
       prompt: z.string().min(1),
       conversationHistory: z
@@ -80,13 +55,12 @@ export async function POST(request: NextRequest) {
         storyboardData = await generateStoryboardWithDeepSeek(prompt);
       }
 
-      const response = NextResponse.json({
+      return NextResponse.json({
         success: true,
         data: {
           storyboard: storyboardData,
         },
       });
-      return setCorsHeaders(response, request);
     } else {
       // 传统文本脚本格式（保持向后兼容）
       let script: string;
@@ -103,20 +77,18 @@ export async function POST(request: NextRequest) {
         script = await generateScriptWithDeepSeek(prompt);
       }
 
-      const response = NextResponse.json({
+      return NextResponse.json({
         success: true,
         data: {
           script,
         },
       });
-      return setCorsHeaders(response, request);
     }
   } catch (error: any) {
     console.error('脚本生成失败:', error?.message || error);
-    if (error?.status === 401) {
-      return unauthorizedError();
-    }
-    return setCorsHeaders(maskServerError(), request);
+    return maskServerError();
   }
 }
+
+export const POST = withApiProtection(postHandler, { requireApiKey: true });
 
