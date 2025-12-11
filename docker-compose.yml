@@ -5,7 +5,7 @@ services:
     container_name: comic-picture-book
     build: .
     env_file:
-      - .env.production
+      - config/env.production.example
     environment:
       - NODE_ENV=production
     ports:
