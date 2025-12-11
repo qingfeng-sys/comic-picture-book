@@ -2,7 +2,11 @@ import axios from 'axios';
 import { StoryboardData } from '@/types';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const QWEN_API_URL =
+  process.env.QWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+const QWEN_MODEL = process.env.QWEN_MODEL || 'qwen3-max';
 const REQUEST_TIMEOUT_MS = 10_000;
+const QWEN_TIMEOUT_MS = Number(process.env.QWEN_TIMEOUT_MS || 15_000);
 const RETRY_TIMES = 2;
 
 async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promise<T> {
@@ -18,6 +22,100 @@ async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promis
     }
   }
   throw lastError;
+}
+
+async function fetchChat(
+  provider: 'deepseek' | 'qwen',
+  messages: DeepSeekMessage[],
+  options: { temperature: number; max_tokens: number }
+): Promise<string> {
+  if (provider === 'deepseek') {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      throw new Error('DEEPSEEK_API_KEY未配置');
+    }
+    const response = await withRetry(() =>
+      axios.post<DeepSeekResponse>(
+        DEEPSEEK_API_URL,
+        {
+          model: 'deepseek-chat',
+          messages,
+          temperature: options.temperature,
+          max_tokens: options.max_tokens,
+          stream: false,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          timeout: REQUEST_TIMEOUT_MS,
+        }
+      )
+    );
+
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content || !content.trim()) throw new Error('DeepSeek 返回空内容');
+    return content.trim();
+  }
+
+  // Qwen 兼容 OpenAI 格式
+  const qwenKey = process.env.QWEN_API_KEY;
+  if (!qwenKey) {
+    throw new Error('QWEN_API_KEY未配置');
+  }
+  const response = await withRetry(() =>
+    axios.post<DeepSeekResponse>(
+      QWEN_API_URL,
+      {
+        model: QWEN_MODEL,
+        messages,
+        temperature: options.temperature,
+        max_tokens: options.max_tokens,
+        stream: false,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${qwenKey}`,
+        },
+        timeout: QWEN_TIMEOUT_MS,
+      }
+    )
+  );
+  const content = response.data?.choices?.[0]?.message?.content;
+  if (!content || !content.trim()) throw new Error('Qwen 返回空内容');
+  return content.trim();
+}
+
+async function chatWithFallback(
+  messages: DeepSeekMessage[],
+  options: { temperature: number; max_tokens: number }
+): Promise<string> {
+  try {
+    return await fetchChat('deepseek', messages, options);
+  } catch (err) {
+    console.error('DeepSeek API调用失败，尝试Qwen备选:', (err as any)?.message || err);
+    try {
+      return await fetchChat('qwen', messages, options);
+    } catch (fallbackErr) {
+      console.error('Qwen 备选调用失败:', (fallbackErr as any)?.message || fallbackErr);
+      return 'AI 当前繁忙，请稍后再试';
+    }
+  }
+}
+
+function buildFallbackStoryboard(): StoryboardData {
+  return {
+    frames: [
+      {
+        frame_id: 1,
+        image_prompt: 'AI 当前繁忙，请稍后再试',
+        dialogues: [],
+        narration: 'AI 当前繁忙，请稍后再试',
+      },
+    ],
+  };
 }
 
 export interface DeepSeekMessage {
@@ -52,11 +150,6 @@ export async function generateScriptWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
 ): Promise<string> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY未配置');
-  }
-
   // 优化系统提示词，让AI生成更适合漫画绘本的脚本
   const systemPrompt = `你是一个专业的故事脚本创作助手，专门为漫画绘本创作故事脚本。
 
@@ -82,42 +175,7 @@ export async function generateScriptWithDeepSeek(
     { role: 'user', content: userPrompt },
   ];
 
-  try {
-    const response = await withRetry(() =>
-      axios.post<DeepSeekResponse>(
-        DEEPSEEK_API_URL,
-        {
-          model: 'deepseek-chat',
-          messages: messages,
-          temperature: 0.8,
-          max_tokens: 3000,
-          stream: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          timeout: REQUEST_TIMEOUT_MS,
-        }
-      )
-    );
-
-    // 检查响应数据
-    if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-      throw new Error('API返回数据格式异常');
-    }
-
-    const content = response.data.choices[0]?.message?.content;
-    if (!content || content.trim().length === 0) {
-      throw new Error('API返回内容为空');
-    }
-
-    return content.trim();
-  } catch (error: any) {
-    console.error('DeepSeek API调用失败:', error?.message || error);
-    return 'AI 当前繁忙，请稍后再试';
-  }
+  return chatWithFallback(messages, { temperature: 0.8, max_tokens: 3000 });
 }
 
 /**
@@ -127,11 +185,6 @@ export async function generateStoryboardWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
 ): Promise<StoryboardData> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY未配置');
-  }
-
   // 系统提示词：强制输出纯JSON，不允许任何自然语言
   const systemPrompt = `你是一个JSON数据生成器。你的任务是根据用户的故事描述，生成结构化的漫画分镜JSON数据。
 
@@ -213,59 +266,41 @@ export async function generateStoryboardWithDeepSeek(
   ];
 
   try {
-    const response = await withRetry(() =>
-      axios.post<DeepSeekResponse>(
-        DEEPSEEK_API_URL,
-        {
-          model: 'deepseek-chat',
-          messages: messages,
-          temperature: 0.7,
-          max_tokens: 4000,
-          stream: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          timeout: REQUEST_TIMEOUT_MS,
-        }
-      )
-    );
-
-    if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-      throw new Error('API返回数据格式异常');
-    }
-
-    let content = response.data.choices[0]?.message?.content;
+    const content = await chatWithFallback(messages, { temperature: 0.7, max_tokens: 4000 });
     if (!content || content.trim().length === 0) {
       throw new Error('API返回内容为空');
     }
 
     // 清理内容：移除可能的markdown代码块标记和前后空白
-    content = content.trim();
+    let cleaned = content.trim();
+
+    // 如果看起来不是JSON，直接返回占位分镜，避免解析报错
+    const firstNonSpace = cleaned[0];
+    if (firstNonSpace !== '{' && firstNonSpace !== '[') {
+      return buildFallbackStoryboard();
+    }
     
     // 移除 ```json 和 ``` 标记
-    if (content.startsWith('```json')) {
-      content = content.replace(/^```json\s*/i, '').replace(/\s*```\s*$/i, '');
-    } else if (content.startsWith('```')) {
-      content = content.replace(/^```\s*/i, '').replace(/\s*```\s*$/i, '');
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*/i, '').replace(/\s*```\s*$/i, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*/i, '').replace(/\s*```\s*$/i, '');
     }
     
     // 移除可能的说明文字（在JSON之前或之后）
     // 尝试找到第一个 { 和最后一个 }
-    const firstBrace = content.indexOf('{');
-    const lastBrace = content.lastIndexOf('}');
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      content = content.substring(firstBrace, lastBrace + 1);
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
     }
 
     // 解析JSON
     let storyboardData: StoryboardData;
     try {
-      storyboardData = JSON.parse(content);
+      storyboardData = JSON.parse(cleaned);
     } catch (parseError) {
-      console.error('JSON解析失败，原始内容:', content.substring(0, 500));
+      console.error('JSON解析失败，原始内容:', cleaned.substring(0, 500));
       throw new Error(`JSON解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
     }
 
@@ -350,42 +385,8 @@ export async function continueConversation(
     { role: 'user', content: userMessage },
   ];
 
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    throw new Error('DEEPSEEK_API_KEY未配置');
-  }
-
   try {
-    const response = await withRetry(() =>
-      axios.post<DeepSeekResponse>(
-        DEEPSEEK_API_URL,
-        {
-          model: 'deepseek-chat',
-          messages: messages,
-          temperature: 0.8,
-          max_tokens: 3000,
-          stream: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          timeout: REQUEST_TIMEOUT_MS,
-        }
-      )
-    );
-
-    if (!response.data || !response.data.choices || response.data.choices.length === 0) {
-      throw new Error('API返回数据格式异常');
-    }
-
-    const content = response.data.choices[0]?.message?.content;
-    if (!content || content.trim().length === 0) {
-      throw new Error('API返回内容为空');
-    }
-
-    return content.trim();
+    return await chatWithFallback(messages, { temperature: 0.8, max_tokens: 3000 });
   } catch (error: any) {
     console.error('对话失败:', error?.message || error);
     return 'AI 当前繁忙，请稍后再试';

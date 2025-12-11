@@ -85,7 +85,7 @@ async function postHandler(request: NextRequest) {
       });
     }
   } catch (error: any) {
-    return maskServerError('脚本生成失败，请稍后重试', request);
+    return maskServerError('脚本生成失败，请稍后重试', request, error);
   }
 }
 

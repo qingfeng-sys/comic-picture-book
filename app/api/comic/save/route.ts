@@ -31,7 +31,7 @@ async function postHandler(request: NextRequest) {
       data: result,
     });
   } catch (error: any) {
-    return maskServerError('保存图片失败，请稍后重试', request);
+    return maskServerError('保存图片失败，请稍后重试', request, error);
   }
 }
 

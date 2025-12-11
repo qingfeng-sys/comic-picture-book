@@ -135,14 +135,14 @@ export async function verifyQiniuApiKey(apiKey: string): Promise<boolean> {
     const response = await withRetry(() =>
       http.post(
         '/images/generations',
-        testRequestBody,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
+      testRequestBody,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
           validateStatus: (status) => status < 500,
-        }
+      }
       )
     );
     
@@ -257,13 +257,13 @@ export async function submitQiniuImageTask(
     const response = await withRetry(() =>
       http.post<QiniuTaskResponse>(
         '/images/generations',
-        requestBody,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-        }
+      requestBody,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      }
       )
     );
 
@@ -356,12 +356,12 @@ export async function getQiniuTaskResult(taskId: string): Promise<{ status: stri
     const response = await withRetry(() =>
       http.get<QiniuTaskResult>(
         `/images/tasks/${taskId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
       )
     );
 
@@ -443,23 +443,23 @@ export async function generateImageWithQiniu(
 ): Promise<string> {
   console.log(`🚀 开始生成图片，模型: ${options?.model || DEFAULT_MODEL}`);
   try {
-    const submitResult = await submitQiniuImageTask(prompt, options);
+  const submitResult = await submitQiniuImageTask(prompt, options);
 
-    if (submitResult.imageUrl) {
-      console.log('✅ 图片生成完成（同步）');
-      return submitResult.imageUrl;
-    }
+  if (submitResult.imageUrl) {
+    console.log('✅ 图片生成完成（同步）');
+    return submitResult.imageUrl;
+  }
 
-    if (submitResult.taskId) {
-      const imageUrl = await waitForQiniuTaskResult(submitResult.taskId, {
-        intervalMs: 2000,
-        maxAttempts: 40,
-      });
-      console.log('✅ 图片生成完成（异步）');
-      return imageUrl;
-    }
+  if (submitResult.taskId) {
+    const imageUrl = await waitForQiniuTaskResult(submitResult.taskId, {
+      intervalMs: 2000,
+      maxAttempts: 40,
+    });
+    console.log('✅ 图片生成完成（异步）');
+    return imageUrl;
+  }
 
-    throw new Error('未能获得图片URL或任务ID');
+  throw new Error('未能获得图片URL或任务ID');
   } catch (error: any) {
     console.error('图像生成失败，返回占位图:', error?.message || error);
     return PLACEHOLDER_IMAGE;

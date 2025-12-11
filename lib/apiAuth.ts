@@ -26,9 +26,13 @@ export function unauthorizedError(request: NextRequest) {
   return handleApiError(request, new Error('Unauthorized'), '未授权的请求', 401);
 }
 
-export function maskServerError(message = '服务暂时不可用，请稍后重试', request?: NextRequest) {
+export function maskServerError(
+  message = '服务暂时不可用，请稍后重试',
+  request?: NextRequest,
+  error?: any
+) {
   if (request) {
-    return handleApiError(request, new Error(message), message, 500);
+    return handleApiError(request, error || new Error(message), message, 500);
   }
   return NextResponse.json(
     { success: false, error: message },

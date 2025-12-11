@@ -100,7 +100,7 @@ async function postHandler(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    return maskServerError('绘本生成服务暂时不可用，请稍后再试', request);
+    return maskServerError('绘本生成服务暂时不可用，请稍后再试', request, error);
   }
 }
 

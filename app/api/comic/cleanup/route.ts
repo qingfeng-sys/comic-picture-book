@@ -15,7 +15,7 @@ async function getHandler(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    return maskServerError('清理失败，请稍后重试', request);
+    return maskServerError('清理失败，请稍后重试', request, error);
   }
 }
 

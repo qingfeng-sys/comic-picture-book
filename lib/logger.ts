@@ -2,18 +2,10 @@ import pino from 'pino';
 
 const level = process.env.LOG_LEVEL || 'info';
 
+// 为避免 thread-stream 依赖问题，统一禁用 pretty，使用 JSON 输出
 export const logger = pino({
   level,
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'SYS:standard',
-          },
-        }
-      : undefined,
+  transport: undefined,
   base: undefined, // 不自动记录 pid/hostname，减少噪声
   timestamp: pino.stdTimeFunctions.isoTime,
 });
