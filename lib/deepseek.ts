@@ -9,6 +9,13 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const QWEN_TIMEOUT_MS = Number(process.env.QWEN_TIMEOUT_MS || 15_000);
 const RETRY_TIMES = 2;
 
+type Provider = 'deepseek' | 'qwen' | 'fallback';
+
+interface ChatResult {
+  content: string;
+  provider: Provider;
+}
+
 async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promise<T> {
   let lastError: any;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -28,7 +35,7 @@ async function fetchChat(
   provider: 'deepseek' | 'qwen',
   messages: DeepSeekMessage[],
   options: { temperature: number; max_tokens: number }
-): Promise<string> {
+): Promise<ChatResult> {
   if (provider === 'deepseek') {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
@@ -56,7 +63,7 @@ async function fetchChat(
 
     const content = response.data?.choices?.[0]?.message?.content;
     if (!content || !content.trim()) throw new Error('DeepSeek 返回空内容');
-    return content.trim();
+    return { content: content.trim(), provider: 'deepseek' };
   }
 
   // Qwen 兼容 OpenAI 格式
@@ -85,13 +92,13 @@ async function fetchChat(
   );
   const content = response.data?.choices?.[0]?.message?.content;
   if (!content || !content.trim()) throw new Error('Qwen 返回空内容');
-  return content.trim();
+  return { content: content.trim(), provider: 'qwen' };
 }
 
 async function chatWithFallback(
   messages: DeepSeekMessage[],
   options: { temperature: number; max_tokens: number }
-): Promise<string> {
+): Promise<ChatResult> {
   try {
     return await fetchChat('deepseek', messages, options);
   } catch (err) {
@@ -100,7 +107,7 @@ async function chatWithFallback(
       return await fetchChat('qwen', messages, options);
     } catch (fallbackErr) {
       console.error('Qwen 备选调用失败:', (fallbackErr as any)?.message || fallbackErr);
-      return 'AI 当前繁忙，请稍后再试';
+      return { content: 'AI 当前繁忙，请稍后再试', provider: 'fallback' };
     }
   }
 }
@@ -149,7 +156,7 @@ export interface DeepSeekResponse {
 export async function generateScriptWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
-): Promise<string> {
+): Promise<ChatResult> {
   // 优化系统提示词，让AI生成更适合漫画绘本的脚本
   const systemPrompt = `你是一个专业的故事脚本创作助手，专门为漫画绘本创作故事脚本。
 
@@ -178,13 +185,18 @@ export async function generateScriptWithDeepSeek(
   return chatWithFallback(messages, { temperature: 0.8, max_tokens: 3000 });
 }
 
+interface StoryboardResult {
+  storyboard: StoryboardData;
+  provider: Provider;
+}
+
 /**
- * 生成结构化分镜数据（JSON格式）
+ * 生成结构化分镜数据（JSON格式），返回提供方标记
  */
 export async function generateStoryboardWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
-): Promise<StoryboardData> {
+): Promise<StoryboardResult> {
   // 系统提示词：强制输出纯JSON，不允许任何自然语言
   const systemPrompt = `你是一个JSON数据生成器。你的任务是根据用户的故事描述，生成结构化的漫画分镜JSON数据。
 
@@ -266,18 +278,18 @@ export async function generateStoryboardWithDeepSeek(
   ];
 
   try {
-    const content = await chatWithFallback(messages, { temperature: 0.7, max_tokens: 4000 });
-    if (!content || content.trim().length === 0) {
+    const result = await chatWithFallback(messages, { temperature: 0.7, max_tokens: 4000 });
+    if (!result.content || result.content.trim().length === 0) {
       throw new Error('API返回内容为空');
     }
 
     // 清理内容：移除可能的markdown代码块标记和前后空白
-    let cleaned = content.trim();
+    let cleaned = result.content.trim();
 
     // 如果看起来不是JSON，直接返回占位分镜，避免解析报错
     const firstNonSpace = cleaned[0];
     if (firstNonSpace !== '{' && firstNonSpace !== '[') {
-      return buildFallbackStoryboard();
+      return { storyboard: buildFallbackStoryboard(), provider: result.provider };
     }
     
     // 移除 ```json 和 ``` 标记
@@ -349,19 +361,10 @@ export async function generateStoryboardWithDeepSeek(
       });
     });
 
-    return storyboardData;
+    return { storyboard: storyboardData, provider: result.provider };
   } catch (error: any) {
     console.error('分镜生成失败:', error?.message || error);
-    return {
-      frames: [
-        {
-          frame_id: 1,
-          image_prompt: 'AI 当前繁忙，请稍后再试',
-          dialogues: [],
-          narration: 'AI 当前繁忙，请稍后再试',
-        },
-      ],
-    };
+    return { storyboard: buildFallbackStoryboard(), provider: 'fallback' };
   }
 }
 
@@ -372,7 +375,7 @@ export async function generateStoryboardWithDeepSeek(
 export async function continueConversation(
   userMessage: string,
   conversationHistory: DeepSeekMessage[]
-): Promise<string> {
+): Promise<ChatResult> {
   // 在对话模式下，使用更灵活的提示词
   const systemPrompt = `你是一个专业的故事脚本创作助手。用户正在完善一个漫画绘本脚本。
 
@@ -389,7 +392,7 @@ export async function continueConversation(
     return await chatWithFallback(messages, { temperature: 0.8, max_tokens: 3000 });
   } catch (error: any) {
     console.error('对话失败:', error?.message || error);
-    return 'AI 当前繁忙，请稍后再试';
+    return { content: 'AI 当前繁忙，请稍后再试', provider: 'fallback' };
   }
 }
 

@@ -4,6 +4,7 @@ import { generateScriptWithDeepSeek, generateStoryboardWithDeepSeek, continueCon
 import { StoryboardData } from '@/types';
 import { validationError, maskServerError } from '@/lib/apiAuth';
 import { withApiProtection } from '@/lib/security/withApiProtection';
+import { logger } from '@/lib/logger';
 
 async function postHandler(request: NextRequest) {
   try {
@@ -40,47 +41,40 @@ async function postHandler(request: NextRequest) {
 
     if (format === 'storyboard') {
       // 生成结构化分镜数据
-      let storyboardData: StoryboardData;
-      
-      if (conversationHistory && conversationHistory.length > 0) {
-        // 继续对话模式（暂时不支持，使用首次生成）
-        const history: DeepSeekMessage[] = conversationHistory.map((msg: any) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-        // 注意：继续对话模式暂时使用首次生成逻辑
-        storyboardData = await generateStoryboardWithDeepSeek(prompt, history);
-      } else {
-        // 首次生成
-        storyboardData = await generateStoryboardWithDeepSeek(prompt);
-      }
+      const storyboardResult = await generateStoryboardWithDeepSeek(prompt, conversationHistory || []);
+
+      logger.info(
+        {
+          provider: storyboardResult.provider,
+          mode: 'storyboard',
+        },
+        'script_generate_provider'
+      );
 
       return NextResponse.json({
         success: true,
         data: {
-          storyboard: storyboardData,
+          storyboard: storyboardResult.storyboard,
+          provider: storyboardResult.provider,
         },
       });
     } else {
       // 传统文本脚本格式（保持向后兼容）
-      let script: string;
-      
-      if (conversationHistory && conversationHistory.length > 0) {
-        // 继续对话
-        const history: DeepSeekMessage[] = conversationHistory.map((msg: any) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-        script = await continueConversation(prompt, history);
-      } else {
-        // 首次生成
-        script = await generateScriptWithDeepSeek(prompt);
-      }
+      const result = await generateScriptWithDeepSeek(prompt, conversationHistory);
 
+      logger.info(
+        {
+          provider: result.provider,
+          mode: 'script',
+        },
+        'script_generate_provider'
+      );
+      
       return NextResponse.json({
         success: true,
         data: {
-          script,
+          script: result.content,
+          provider: result.provider,
         },
       });
     }
