@@ -1,10 +1,11 @@
 /**
  * 图像生成工具
- * 使用七牛云文生图API生成绘本图像
+ * 支持通义万相（异步）与七牛云文生图
  */
 
 import { generateImageWithQiniu } from './qiniu';
-import { StoryboardData, DialogueItem, GenerationModel } from '@/types';
+import { generateImageWithWan, isWanGenerationModel } from './wan';
+import { StoryboardData, DialogueItem, GenerationModel, QINIU_GENERATION_MODELS, WAN_GENERATION_MODELS } from '@/types';
 
 export interface ImageGenerationOptions {
   prompt: string;
@@ -13,6 +14,17 @@ export interface ImageGenerationOptions {
 }
 
 const DEFAULT_MODEL: GenerationModel = 'gemini-2.5-flash-image';
+
+function normalizeGenerationModel(model?: GenerationModel | string): GenerationModel {
+  const wanModels = WAN_GENERATION_MODELS as readonly string[];
+  const qiniuModels = QINIU_GENERATION_MODELS as readonly string[];
+
+  if (model && (wanModels.includes(model as string) || qiniuModels.includes(model as string))) {
+    return model as GenerationModel;
+  }
+
+  return DEFAULT_MODEL;
+}
 
 /**
  * 为脚本页面生成图像提示词
@@ -251,20 +263,27 @@ export async function generateComicPageImage(
 ): Promise<string> {
   const prompt = generateImagePrompt(pageText, pageNumber);
   const maxRetries = 2; // 最多重试2次
+  const modelToUse = normalizeGenerationModel(generationModel);
+  const negativePrompt = '恐怖，暴力，成人内容，低质量，模糊，变形';
   
   try {
     console.log(`正在生成第${pageNumber}页图像，提示词: ${prompt}`);
     
-    // 使用七牛云API生成图像
-    const imageUrl = await generateImageWithQiniu(
-      prompt,
-      {
-        negative_prompt: '恐怖，暴力，成人内容，低质量，模糊，变形',
-        aspect_ratio: '1:1',
-        human_fidelity: 0.8,
-        model: generationModel,
-      }
-    );
+    const imageUrl = isWanGenerationModel(modelToUse)
+      ? await generateImageWithWan(prompt, {
+        model: modelToUse,
+        negative_prompt: negativePrompt,
+        size: '1024*1024',
+      })
+      : await generateImageWithQiniu(
+        prompt,
+        {
+          negative_prompt: negativePrompt,
+          aspect_ratio: '1:1',
+          human_fidelity: 0.8,
+          model: modelToUse,
+        }
+      );
     
     // 验证返回的URL是否有效（不是占位符）
     if (imageUrl && !imageUrl.includes('via.placeholder.com') && !imageUrl.includes('placeholder')) {
@@ -281,7 +300,7 @@ export async function generateComicPageImage(
       const waitTime = (retryCount + 1) * 2000; // 递增等待时间：2秒、4秒
       console.log(`等待 ${waitTime}ms 后重试...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
-      return generateComicPageImage(pageText, pageNumber, retryCount + 1, generationModel);
+      return generateComicPageImage(pageText, pageNumber, retryCount + 1, modelToUse);
     }
     
     // 所有重试都失败，抛出错误而不是返回占位符

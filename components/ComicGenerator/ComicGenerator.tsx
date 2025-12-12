@@ -5,6 +5,62 @@ import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, Gener
 import { createScriptWithSegments, loadScriptsFromStorage, importScriptFromText, extractStoryboardFromScript, saveComicBookToStorage } from '@/lib/scriptUtils';
 import ComicPageCanvas from '@/components/ComicPageCanvas/ComicPageCanvas';
 
+const MODEL_OPTIONS: Array<{
+  value: GenerationModel;
+  label: string;
+  description: string;
+  isAsync: boolean;
+}> = [
+  {
+    value: 'wan2.5-t2i-preview',
+    label: '通义万相 V2.5 Preview',
+    description: '异步，通义万相最新版预览，质量高',
+    isAsync: true,
+  },
+  {
+    value: 'wan2.2-t2i-plus',
+    label: '通义万相 2.2 Plus',
+    description: '异步，均衡质量与速度，适合主用',
+    isAsync: true,
+  },
+  {
+    value: 'wan2.2-t2i-flash',
+    label: '通义万相 2.2 Flash',
+    description: '异步，快速出图，质量略低',
+    isAsync: true,
+  },
+  {
+    value: 'wanx2.1-t2i-plus',
+    label: '通义万相 X2.1 Plus',
+    description: '异步，高清质量，速度中等',
+    isAsync: true,
+  },
+  {
+    value: 'wanx2.1-t2i-turbo',
+    label: '通义万相 X2.1 Turbo',
+    description: '异步，加速模式，适合快速预览',
+    isAsync: true,
+  },
+  {
+    value: 'wanx2.0-t2i-turbo',
+    label: '通义万相 X2.0 Turbo',
+    description: '异步，早期版本，速度快',
+    isAsync: true,
+  },
+  {
+    value: 'gemini-2.5-flash-image',
+    label: 'Gemini 2.5 Flash Image（七牛）',
+    description: '同步返回，速度快',
+    isAsync: false,
+  },
+  {
+    value: 'kling-v1',
+    label: 'Kling v1（七牛）',
+    description: '异步任务，质量高',
+    isAsync: true,
+  },
+];
+
 interface ComicGeneratorProps {
   onBack: () => void;
 }
@@ -17,7 +73,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   const [generatedPages, setGeneratedPages] = useState<ComicPage[]>([]);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
-  const [generationModel, setGenerationModel] = useState<GenerationModel>('gemini-2.5-flash-image');
+  const [generationModel, setGenerationModel] = useState<GenerationModel>(MODEL_OPTIONS[0].value);
 
   useEffect(() => {
     const scripts = loadScriptsFromStorage();
@@ -215,51 +271,23 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           {/* 模型选择 */}
           <div>
             <h3 className="text-lg font-semibold mb-3 text-gray-800">选择生成模型</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label
-                className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                  generationModel === 'gemini-2.5-flash-image'
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-primary-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="generationModel"
-                  value="gemini-2.5-flash-image"
-                  checked={generationModel === 'gemini-2.5-flash-image'}
-                  onChange={() => setGenerationModel('gemini-2.5-flash-image')}
-                  className="mt-1"
-                />
-                <div>
-                  <div className="font-medium text-gray-800">Gemini 2.5 Flash Image</div>
-                  <div className="text-sm text-gray-500">同步返回，速度较快</div>
-                </div>
-              </label>
-              <label
-                className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                  generationModel === 'kling-v1'
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-primary-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="generationModel"
-                  value="kling-v1"
-                  checked={generationModel === 'kling-v1'}
-                  onChange={() => setGenerationModel('kling-v1')}
-                  className="mt-1"
-                />
-                <div>
-                  <div className="font-medium text-gray-800">Kling v1</div>
-                  <div className="text-sm text-gray-500">异步任务，需轮询，质量高但稍慢</div>
-                </div>
-              </label>
+            <select
+              value={generationModel}
+              onChange={(e) => setGenerationModel(e.target.value as GenerationModel)}
+              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {MODEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className="mt-2 text-xs text-gray-500 space-y-1">
+              <div>
+                当前模型：{MODEL_OPTIONS.find((o) => o.value === generationModel)?.description || '请选择模型'}
+              </div>
+              <div>通义万相模型采用异步生成，需等待任务完成后返回图片。</div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Kling 为异步模式，生成时间可能更长，请耐心等待。
-            </p>
           </div>
 
           {/* 脚本片段选择 */}

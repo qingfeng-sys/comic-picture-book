@@ -19,7 +19,23 @@ export interface ScriptWithSegments extends Script {
 }
 
 // 文生图模型
-export type GenerationModel = 'gemini-2.5-flash-image' | 'kling-v1';
+export const WAN_GENERATION_MODELS = [
+  'wan2.5-t2i-preview',
+  'wan2.2-t2i-plus',
+  'wan2.2-t2i-flash',
+  'wanx2.1-t2i-plus',
+  'wanx2.1-t2i-turbo',
+  'wanx2.0-t2i-turbo',
+] as const;
+
+export const QINIU_GENERATION_MODELS = [
+  'gemini-2.5-flash-image',
+  'kling-v1',
+] as const;
+
+export type GenerationModel =
+  | (typeof WAN_GENERATION_MODELS)[number]
+  | (typeof QINIU_GENERATION_MODELS)[number];
 
 // 对话消息类型
 export interface ChatMessage {
