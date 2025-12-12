@@ -295,7 +295,7 @@ export async function generateStoryScriptFromOutline(
 【第1页】
 场景：...
 画面：...
-人物：...
+人物：...（必须写清每个角色的**身份关系/年龄段**，如“舅舅=成年男性”“外甥=儿童”）
 对白：
 - 角色A：...
 - 角色B：...
@@ -305,6 +305,7 @@ export async function generateStoryScriptFromOutline(
 - 总页数建议 8-12 页
 - 对白简短、儿童友好（如目标读者是儿童）
 - 场景描述要可视化、便于画面生成
+- **角色一致性硬约束**：必须严格遵守大纲中的角色表（姓名/关系/年龄段/外观要点）。后续每页都要保持人物外观与身份一致（不要把成年人画成小孩，不要换性别/发型/服装风格）
 `;
 
   const userContent = `这是故事大纲(JSON)：\n${JSON.stringify(outline, null, 2)}\n\n请按要求输出剧本。`;
@@ -376,6 +377,9 @@ export async function generateStoryboardWithDeepSeek(
 4. 直接输出JSON对象，格式必须完全符合以下Schema
 5. **严禁对白错配**：dialogues 中每条对话的 role 必须是真正说话者，text 必须是该角色说的话；不要把 A 的话写到 B 的 role 下
 6. **坐标必须对应说话者头部**：x_ratio/y_ratio 代表该 role 角色的头部位置；不要随意填数
+7. **角色一致性硬约束**：必须严格遵守“角色表”，并在每个 frame 的 image_prompt 里明确写出关键视觉特征，确保跨帧一致
+   - 例如：舅舅=成年男性（更高更壮、成年脸型/胡茬可选）、外甥=儿童（更矮更小、童装）
+   - 同一角色的发型/服装配色/年龄段必须保持一致
 
 **输出格式（必须是这个结构）：**
 {
@@ -441,9 +445,19 @@ export async function generateStoryboardWithDeepSeek(
 
 现在开始，只输出JSON对象，不要任何其他内容。`;
 
+    const characterSheet = outline.characters
+      .map((c) => `- ${c.name}｜${c.role}｜${c.description}${c.visual ? `｜外观：${c.visual}` : ''}`)
+      .join('\n');
+
     const messages: DashScopeMessage[] = [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `这是故事剧本（半结构化文本）：\n${script}\n\n请按要求生成分镜JSON。` },
+      {
+        role: 'user',
+        content:
+          `【角色表（必须严格遵守，确保跨帧一致）】\n${characterSheet}\n\n` +
+          `【故事剧本（半结构化文本）】\n${script}\n\n` +
+          `请按要求生成分镜JSON，并在每个 image_prompt 中体现角色身份关系（如“舅舅=成年男性/外甥=儿童”）与固定外观要点。`,
+      },
     ];
 
     const candidates: ModelCandidate[] = [
