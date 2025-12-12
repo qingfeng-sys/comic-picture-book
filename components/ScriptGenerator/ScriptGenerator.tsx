@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react';
 import { ChatMessage, StoryboardData, Script } from '@/types';
 import ChatInterface from '../ChatInterface/ChatInterface';
 
-import { Script } from '@/types';
-
 interface ScriptGeneratorProps {
   onScriptComplete: (script: string, title: string, scriptId?: string) => void;
   onCancel: () => void;

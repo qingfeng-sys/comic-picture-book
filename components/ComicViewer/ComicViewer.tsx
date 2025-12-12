@@ -5,6 +5,7 @@ import { ComicBook } from '@/types';
 import ComicPageCanvas, { ComicPageCanvasRef } from '@/components/ComicPageCanvas/ComicPageCanvas';
 import { downloadCanvasesAsZip } from '@/lib/downloadUtils';
 import { saveComicBookToStorage } from '@/lib/scriptUtils';
+import { renderComicPageToCanvas } from '@/lib/comicPageRenderer';
 
 interface ComicViewerProps {
   comicBook: ComicBook;
@@ -60,28 +61,17 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
     }
     setIsDownloading(true);
     try {
-      // 等待所有Canvas加载完成
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      // 重要：ComicViewer 只渲染当前页 Canvas，其他页没有 ref。
+      // 因此“下载整本”改为逐页离屏渲染，确保每页都包含对话气泡/旁白。
       const canvases: Array<{ canvas: HTMLCanvasElement; filename: string }> = [];
-      
-      for (let i = 0; i < comicBook.pages.length; i++) {
-        const canvasRef = canvasRefs.current.get(i);
-        if (canvasRef) {
-          const canvas = canvasRef.getCanvas();
-          if (canvas) {
-            const page = comicBook.pages[i];
-            canvases.push({
-              canvas,
-              filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
-            });
-          }
-        }
-      }
 
-      if (canvases.length === 0) {
-        alert('没有可下载的页面');
-        return;
+      for (let i = 0; i < currentComicBook.pages.length; i++) {
+        const page = currentComicBook.pages[i];
+        const canvas = await renderComicPageToCanvas(page); // 导出默认用原图尺寸，清晰度更好
+        canvases.push({
+          canvas,
+          filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
+        });
       }
 
       const comicTitle = currentComicBook.title || currentComicBook.id.substring(0, 8);

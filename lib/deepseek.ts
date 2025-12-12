@@ -1,120 +1,41 @@
-import axios from 'axios';
 import { StoryboardData } from '@/types';
+import { dashscopeChat, type DashScopeMessage, type DashScopeChatOptions } from '@/lib/dashscope';
 
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-const QWEN_API_URL =
-  process.env.QWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-const QWEN_MODEL = process.env.QWEN_MODEL || 'qwen3-max';
-const REQUEST_TIMEOUT_MS = 10_000;
-const QWEN_TIMEOUT_MS = Number(process.env.QWEN_TIMEOUT_MS || 15_000);
-const RETRY_TIMES = 2;
+type Provider = 'dashscope' | 'fallback';
 
-type Provider = 'deepseek' | 'qwen' | 'fallback';
-
-interface ChatResult {
+export interface ChatResult {
   content: string;
   provider: Provider;
+  model?: string;
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promise<T> {
-  let lastError: any;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await fn();
-    } catch (err: any) {
-      lastError = err;
-      if (attempt === retries) break;
-      const backoff = 200 * Math.pow(2, attempt); // 指数退避
-      await new Promise(res => setTimeout(res, backoff));
-    }
-  }
-  throw lastError;
+export interface PipelineProviders {
+  outline?: string;
+  script?: string;
+  storyboard?: string;
 }
 
-async function fetchChat(
-  provider: 'deepseek' | 'qwen',
-  messages: DeepSeekMessage[],
-  options: { temperature: number; max_tokens: number }
-): Promise<ChatResult> {
-  if (provider === 'deepseek') {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      throw new Error('DEEPSEEK_API_KEY未配置');
-    }
-    const response = await withRetry(() =>
-      axios.post<DeepSeekResponse>(
-        DEEPSEEK_API_URL,
-        {
-          model: 'deepseek-chat',
-          messages,
-          temperature: options.temperature,
-          max_tokens: options.max_tokens,
-          stream: false,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          timeout: REQUEST_TIMEOUT_MS,
-        }
-      )
-    );
-
-    const content = response.data?.choices?.[0]?.message?.content;
-    if (!content || !content.trim()) throw new Error('DeepSeek 返回空内容');
-    return { content: content.trim(), provider: 'deepseek' };
-  }
-
-  // Qwen 兼容 OpenAI 格式
-  const qwenKey =
-    process.env.DASHSCOPE_API_KEY ||
-    (process.env as any).DASHSCOPE_API_KEY ||
-    process.env.QWEN_API_KEY || // 兼容旧命名
-    (process.env as any).QWEN_API_KEY;
-
-  if (!qwenKey) {
-    throw new Error('DASHSCOPE_API_KEY未配置');
-  }
-  const response = await withRetry(() =>
-    axios.post<DeepSeekResponse>(
-      QWEN_API_URL,
-      {
-        model: QWEN_MODEL,
-        messages,
-        temperature: options.temperature,
-        max_tokens: options.max_tokens,
-        stream: false,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${qwenKey}`,
-        },
-        timeout: QWEN_TIMEOUT_MS,
-      }
-    )
-  );
-  const content = response.data?.choices?.[0]?.message?.content;
-  if (!content || !content.trim()) throw new Error('Qwen 返回空内容');
-  return { content: content.trim(), provider: 'qwen' };
-}
-
-async function chatWithFallback(
-  messages: DeepSeekMessage[],
-  options: { temperature: number; max_tokens: number }
-): Promise<ChatResult> {
-  try {
-    return await fetchChat('deepseek', messages, options);
-  } catch (err) {
-    console.error('DeepSeek API调用失败，尝试Qwen备选:', (err as any)?.message || err);
-    try {
-      return await fetchChat('qwen', messages, options);
-    } catch (fallbackErr) {
-      console.error('Qwen 备选调用失败:', (fallbackErr as any)?.message || fallbackErr);
-      return { content: 'AI 当前繁忙，请稍后再试', provider: 'fallback' };
-    }
-  }
+export interface StoryOutline {
+  overview: {
+    title: string;
+    logline: string;
+    theme?: string;
+    tone?: string;
+    target_audience?: string;
+    page_count_suggestion?: number;
+  };
+  chapters: Array<{
+    chapter_id: number;
+    title: string;
+    summary: string;
+    key_scenes?: string[];
+  }>;
+  characters: Array<{
+    name: string;
+    role: string;
+    description: string;
+    visual?: string;
+  }>;
 }
 
 function buildFallbackStoryboard(): StoryboardData {
@@ -128,6 +49,90 @@ function buildFallbackStoryboard(): StoryboardData {
       },
     ],
   };
+}
+
+function safeJsonSubstring(text: string): string | null {
+  const cleaned = text.trim();
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return cleaned.substring(firstBrace, lastBrace + 1);
+  }
+  return null;
+}
+
+function stripMarkdownFences(text: string): string {
+  let t = text.trim();
+  if (t.startsWith('```json')) t = t.replace(/^```json\s*/i, '');
+  else if (t.startsWith('```')) t = t.replace(/^```\s*/i, '');
+  if (t.endsWith('```')) t = t.replace(/\s*```\s*$/i, '');
+  return t.trim();
+}
+
+function parseJsonOrThrow<T>(raw: string): T {
+  const t = stripMarkdownFences(raw);
+  const sub = safeJsonSubstring(t) || t;
+  return JSON.parse(sub) as T;
+}
+
+function validateOutline(o: any): StoryOutline {
+  if (!o || typeof o !== 'object') throw new Error('大纲必须是JSON对象');
+  if (!o.overview || typeof o.overview !== 'object') throw new Error('大纲必须包含overview对象');
+  if (!o.overview.title || !o.overview.logline) throw new Error('overview必须包含title与logline');
+  if (!Array.isArray(o.chapters) || o.chapters.length === 0) throw new Error('大纲必须包含chapters数组且不能为空');
+  if (!Array.isArray(o.characters) || o.characters.length === 0) throw new Error('大纲必须包含characters数组且不能为空');
+  return o as StoryOutline;
+}
+
+function validateStoryboard(storyboardData: any): StoryboardData {
+  if (!storyboardData || typeof storyboardData !== 'object') {
+    throw new Error('返回数据必须是JSON对象');
+  }
+  if (!storyboardData.frames || !Array.isArray(storyboardData.frames)) {
+    throw new Error('返回数据必须包含frames数组字段');
+  }
+  if (storyboardData.frames.length === 0) {
+    throw new Error('frames数组不能为空');
+  }
+  storyboardData.frames.forEach((frame: any, index: number) => {
+    if (!frame.frame_id || typeof frame.frame_id !== 'number') {
+      throw new Error(`第${index + 1}个分镜缺少frame_id或格式错误`);
+    }
+    if (!frame.image_prompt || typeof frame.image_prompt !== 'string') {
+      throw new Error(`第${index + 1}个分镜缺少image_prompt或格式错误`);
+    }
+    if (!Array.isArray(frame.dialogues)) {
+      throw new Error(`第${index + 1}个分镜的dialogues必须是数组`);
+    }
+    frame.dialogues.forEach((dialogue: any, dIndex: number) => {
+      if (!dialogue.role || typeof dialogue.role !== 'string') {
+        throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话缺少role字段`);
+      }
+      if (!dialogue.text || typeof dialogue.text !== 'string') {
+        throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话缺少text字段`);
+      }
+      if (!['left', 'right', 'center'].includes(dialogue.anchor)) {
+        throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话的anchor必须是"left"、"right"或"center"`);
+      }
+      // 宽容处理：坐标非法时自动夹紧，减少整段失败导致 fallback
+      if (typeof dialogue.x_ratio !== 'number' || Number.isNaN(dialogue.x_ratio)) {
+        dialogue.x_ratio = 0.5;
+      }
+      if (typeof dialogue.y_ratio !== 'number' || Number.isNaN(dialogue.y_ratio)) {
+        dialogue.y_ratio = 0.4;
+      }
+      dialogue.x_ratio = Math.min(1, Math.max(0, dialogue.x_ratio));
+      dialogue.y_ratio = Math.min(1, Math.max(0, dialogue.y_ratio));
+
+      // 宽容处理：anchor 与 x_ratio 不一致时自动纠正（避免“说话人位置”与气泡朝向错配）
+      const recommended =
+        dialogue.x_ratio < 0.45 ? 'left' : dialogue.x_ratio > 0.55 ? 'right' : 'center';
+      if (dialogue.anchor !== recommended) {
+        dialogue.anchor = recommended;
+      }
+    });
+  });
+  return storyboardData as StoryboardData;
 }
 
 export interface DeepSeekMessage {
@@ -155,6 +160,181 @@ export interface DeepSeekResponse {
   };
 }
 
+interface ModelCandidate {
+  model: string;
+  options?: DashScopeChatOptions;
+}
+
+async function callWithModelFallback(
+  stage: 'outline' | 'script' | 'storyboard' | 'chat',
+  candidates: ModelCandidate[],
+  messages: DashScopeMessage[],
+  baseOptions: DashScopeChatOptions
+): Promise<ChatResult> {
+  let lastErr: any;
+  for (const c of candidates) {
+    try {
+      const result = await dashscopeChat(c.model, messages, { ...baseOptions, ...(c.options || {}) });
+      return { content: result.content, provider: 'dashscope', model: c.model };
+    } catch (err: any) {
+      lastErr = err;
+      console.error(`[DashScope][${stage}] 模型调用失败，尝试回退:`, c.model, err?.message || err);
+    }
+  }
+  console.error(`[DashScope][${stage}] 所有模型均失败:`, lastErr?.message || lastErr);
+  return { content: 'AI 当前繁忙，请稍后再试', provider: 'fallback' };
+}
+
+function toDashScopeMessages(messages: DeepSeekMessage[]): DashScopeMessage[] {
+  return messages.map(m => ({ role: m.role, content: m.content }));
+}
+
+function stageTimeoutMs(stage: 'outline' | 'script' | 'storyboard' | 'chat'): number {
+  // 为大模型/长输出设置更合理的默认超时，仍可用环境变量覆盖
+  const envKey =
+    stage === 'outline'
+      ? 'DASHSCOPE_OUTLINE_TIMEOUT_MS'
+      : stage === 'script'
+        ? 'DASHSCOPE_SCRIPT_TIMEOUT_MS'
+        : stage === 'storyboard'
+          ? 'DASHSCOPE_STORYBOARD_TIMEOUT_MS'
+          : 'DASHSCOPE_CHAT_TIMEOUT_MS';
+  const raw = (process.env as any)[envKey];
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return n;
+
+  // defaults
+  if (stage === 'outline') return 45_000;
+  if (stage === 'script') return 90_000;
+  if (stage === 'storyboard') return 120_000;
+  return 60_000;
+}
+
+/**
+ * 1) 故事大纲：优先 qwen-flash（enable_thinking=false），失败回退到 qwen3-30b-a3b-instruct-2507、deepseek-r1-distill-qwen-14b
+ * 输出：严格 JSON
+ */
+export async function generateStoryOutline(
+  userPrompt: string,
+  conversationHistory: DeepSeekMessage[] = []
+): Promise<{ outline: StoryOutline; providers: PipelineProviders }> {
+  const systemPrompt = `你是一个专业的故事大纲策划师。请根据用户的故事描述，生成“绘本/漫画”创作所需的大纲。
+
+**严格规则：**
+1) 只输出 JSON 对象；不要任何解释、说明、markdown 代码块标记
+2) JSON 必须严格符合下方 Schema（字段名必须一致）
+
+Schema:
+{
+  "overview": {
+    "title": "故事标题",
+    "logline": "一句话梗概",
+    "theme": "主题(可选)",
+    "tone": "风格/氛围(可选)",
+    "target_audience": "目标读者(可选)",
+    "page_count_suggestion": 10
+  },
+  "chapters": [
+    {
+      "chapter_id": 1,
+      "title": "章节标题",
+      "summary": "章节概述(2-4句)",
+      "key_scenes": ["关键场景1","关键场景2"]
+    }
+  ],
+  "characters": [
+    {
+      "name": "角色名",
+      "role": "主角/配角/反派/旁白等",
+      "description": "性格与动机(1-3句)",
+      "visual": "外观要点(可选，便于画面统一)"
+    }
+  ]
+}
+
+现在开始，只输出 JSON。`;
+
+  const messages: DashScopeMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...toDashScopeMessages(conversationHistory),
+    { role: 'user', content: userPrompt },
+  ];
+
+  const candidates: ModelCandidate[] = [
+    { model: 'qwen-flash', options: { enable_thinking: false } },
+    { model: 'qwen3-30b-a3b-instruct-2507' },
+    { model: 'deepseek-r1-distill-qwen-14b' },
+  ];
+
+  const result = await callWithModelFallback('outline', candidates, messages, {
+    temperature: 0.4,
+    max_tokens: 2200,
+    requestTimeoutMs: stageTimeoutMs('outline'),
+  });
+  if (result.provider === 'fallback') {
+    throw new Error('大纲生成失败');
+  }
+
+  const outline = validateOutline(parseJsonOrThrow(result.content));
+  return { outline, providers: { outline: result.model } };
+}
+
+/**
+ * 2) 故事脚本：使用大纲作为输入，输出“半结构化剧本格式”（非 JSON）
+ * 优先 deepseek-v3.2（DashScope），失败回退 deepseek-r1-distill-qwen-32b、deepseek-r1-distill-qwen-14b
+ */
+export async function generateStoryScriptFromOutline(
+  outline: StoryOutline,
+  conversationHistory: DeepSeekMessage[] = []
+): Promise<{ script: string; providers: PipelineProviders }> {
+  const systemPrompt = `你是一个专业的绘本/漫画编剧。请基于“故事大纲 JSON”写出一个适合绘本/漫画分镜的**半结构化剧本**。
+
+**输出要求：**
+- 不要输出 JSON
+- 每一页用如下格式（示例）：
+【第1页】
+场景：...
+画面：...
+人物：...
+对白：
+- 角色A：...
+- 角色B：...
+旁白：...
+
+**约束：**
+- 总页数建议 8-12 页
+- 对白简短、儿童友好（如目标读者是儿童）
+- 场景描述要可视化、便于画面生成
+`;
+
+  const userContent = `这是故事大纲(JSON)：\n${JSON.stringify(outline, null, 2)}\n\n请按要求输出剧本。`;
+
+  const messages: DashScopeMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...toDashScopeMessages(conversationHistory),
+    { role: 'user', content: userContent },
+  ];
+
+  const candidates: ModelCandidate[] = [
+    { model: 'qwen2.5-72b-instruct' },
+    { model: 'deepseek-v3.2' },
+    { model: 'deepseek-r1-distill-qwen-32b' },
+    { model: 'deepseek-r1-distill-qwen-14b' },
+  ];
+
+  const result = await callWithModelFallback('script', candidates, messages, {
+    temperature: 0.8,
+    max_tokens: 3200,
+    requestTimeoutMs: stageTimeoutMs('script'),
+  });
+
+  if (result.provider === 'fallback') {
+    throw new Error('脚本生成失败');
+  }
+
+  return { script: result.content.trim(), providers: { script: result.model } };
+}
+
 /**
  * 调用DeepSeek API生成脚本
  */
@@ -162,37 +342,16 @@ export async function generateScriptWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
 ): Promise<ChatResult> {
-  // 优化系统提示词，让AI生成更适合漫画绘本的脚本
-  const systemPrompt = `你是一个专业的故事脚本创作助手，专门为漫画绘本创作故事脚本。
-
-创作要求：
-1. 脚本长度控制在10页左右，每页内容简洁明了
-2. 每页脚本格式：以"第X页："开头，包含场景描述和对话
-3. 场景描述要生动具体，适合用图像表现
-4. 对话要简洁有趣，符合卡通风格
-5. 故事要有清晰的起承转合结构
-6. 语言风格：适合儿童阅读，温馨有趣
-
-脚本格式示例：
-第1页：
-[场景：阳光明媚的早晨，小兔子在花园里]
-小兔子："今天天气真好，我要去探险！"
-
-请根据用户的描述，生成一个完整的故事脚本。`;
-
-  // 构建消息列表
-  const messages: DeepSeekMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...conversationHistory,
-    { role: 'user', content: userPrompt },
-  ];
-
-  return chatWithFallback(messages, { temperature: 0.8, max_tokens: 3000 });
+  // 兼容旧调用：这里按新流程生成“剧本”（大纲→剧本），并返回 content（非 JSON）
+  const { outline } = await generateStoryOutline(userPrompt, conversationHistory);
+  const { script, providers } = await generateStoryScriptFromOutline(outline, conversationHistory);
+  return { content: script, provider: 'dashscope', model: providers.script };
 }
 
 interface StoryboardResult {
   storyboard: StoryboardData;
   provider: Provider;
+  providers?: PipelineProviders;
 }
 
 /**
@@ -202,14 +361,21 @@ export async function generateStoryboardWithDeepSeek(
   userPrompt: string,
   conversationHistory: DeepSeekMessage[] = []
 ): Promise<StoryboardResult> {
-  // 系统提示词：强制输出纯JSON，不允许任何自然语言
-  const systemPrompt = `你是一个JSON数据生成器。你的任务是根据用户的故事描述，生成结构化的漫画分镜JSON数据。
+  // 新流程：大纲(JSON) → 半结构化剧本 → 分镜(JSON)
+  try {
+    const { outline, providers: p1 } = await generateStoryOutline(userPrompt, conversationHistory);
+    const { script, providers: p2 } = await generateStoryScriptFromOutline(outline, conversationHistory);
+
+    // 系统提示词：强制输出纯JSON，不允许任何自然语言
+    const systemPrompt = `你是一个JSON数据生成器。你的任务是根据用户提供的“故事剧本”，生成结构化的漫画分镜JSON数据。
 
 **严格规则：**
 1. 只输出JSON对象，不要包含任何解释、说明、markdown代码块标记或其他文字
 2. 不要输出markdown代码块标记（如三个反引号）
 3. 不要输出任何自然语言说明
 4. 直接输出JSON对象，格式必须完全符合以下Schema
+5. **严禁对白错配**：dialogues 中每条对话的 role 必须是真正说话者，text 必须是该角色说的话；不要把 A 的话写到 B 的 role 下
+6. **坐标必须对应说话者头部**：x_ratio/y_ratio 代表该 role 角色的头部位置；不要随意填数
 
 **输出格式（必须是这个结构）：**
 {
@@ -275,98 +441,33 @@ export async function generateStoryboardWithDeepSeek(
 
 现在开始，只输出JSON对象，不要任何其他内容。`;
 
-  // 构建消息列表
-  const messages: DeepSeekMessage[] = [
-    { role: 'system', content: systemPrompt },
-    ...conversationHistory,
-    { role: 'user', content: userPrompt },
-  ];
+    const messages: DashScopeMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `这是故事剧本（半结构化文本）：\n${script}\n\n请按要求生成分镜JSON。` },
+    ];
 
-  try {
-    const result = await chatWithFallback(messages, { temperature: 0.7, max_tokens: 4000 });
-    if (!result.content || result.content.trim().length === 0) {
-      throw new Error('API返回内容为空');
-    }
+    const candidates: ModelCandidate[] = [
+      { model: 'qwen3-next-80b-a3b-instruct' },
+      { model: 'qwen2.5-72b-instruct' },
+      { model: 'qwen3-max' },
+    ];
 
-    // 清理内容：移除可能的markdown代码块标记和前后空白
-    let cleaned = result.content.trim();
-
-    // 如果看起来不是JSON，直接返回占位分镜，避免解析报错
-    const firstNonSpace = cleaned[0];
-    if (firstNonSpace !== '{' && firstNonSpace !== '[') {
-      return { storyboard: buildFallbackStoryboard(), provider: result.provider };
-    }
-    
-    // 移除 ```json 和 ``` 标记
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/i, '').replace(/\s*```\s*$/i, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/i, '').replace(/\s*```\s*$/i, '');
-    }
-    
-    // 移除可能的说明文字（在JSON之前或之后）
-    // 尝试找到第一个 { 和最后一个 }
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-    }
-
-    // 解析JSON
-    let storyboardData: StoryboardData;
-    try {
-      storyboardData = JSON.parse(cleaned);
-    } catch (parseError) {
-      console.error('JSON解析失败，原始内容:', cleaned.substring(0, 500));
-      throw new Error(`JSON解析失败: ${parseError instanceof Error ? parseError.message : '未知错误'}`);
-    }
-
-    // 验证数据结构
-    if (!storyboardData || typeof storyboardData !== 'object') {
-      throw new Error('返回数据必须是JSON对象');
-    }
-    
-    if (!storyboardData.frames || !Array.isArray(storyboardData.frames)) {
-      throw new Error('返回数据必须包含frames数组字段');
-    }
-    
-    if (storyboardData.frames.length === 0) {
-      throw new Error('frames数组不能为空');
-    }
-
-    // 验证每个frame的基本结构
-    storyboardData.frames.forEach((frame, index) => {
-      if (!frame.frame_id || typeof frame.frame_id !== 'number') {
-        throw new Error(`第${index + 1}个分镜缺少frame_id或格式错误`);
-      }
-      if (!frame.image_prompt || typeof frame.image_prompt !== 'string') {
-        throw new Error(`第${index + 1}个分镜缺少image_prompt或格式错误`);
-      }
-      if (!Array.isArray(frame.dialogues)) {
-        throw new Error(`第${index + 1}个分镜的dialogues必须是数组`);
-      }
-      
-      // 验证每个dialogue的结构
-      frame.dialogues.forEach((dialogue, dIndex) => {
-        if (!dialogue.role || typeof dialogue.role !== 'string') {
-          throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话缺少role字段`);
-        }
-        if (!dialogue.text || typeof dialogue.text !== 'string') {
-          throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话缺少text字段`);
-        }
-        if (!['left', 'right', 'center'].includes(dialogue.anchor)) {
-          throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话的anchor必须是"left"、"right"或"center"`);
-        }
-        if (typeof dialogue.x_ratio !== 'number' || dialogue.x_ratio < 0 || dialogue.x_ratio > 1) {
-          throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话的x_ratio必须是0~1之间的数字`);
-        }
-        if (typeof dialogue.y_ratio !== 'number' || dialogue.y_ratio < 0 || dialogue.y_ratio > 1) {
-          throw new Error(`第${index + 1}个分镜的第${dIndex + 1}个对话的y_ratio必须是0~1之间的数字`);
-        }
-      });
+    const result = await callWithModelFallback('storyboard', candidates, messages, {
+      temperature: 0.7,
+      max_tokens: 4200,
+      requestTimeoutMs: stageTimeoutMs('storyboard'),
     });
 
-    return { storyboard: storyboardData, provider: result.provider };
+    if (result.provider === 'fallback') {
+      return { storyboard: buildFallbackStoryboard(), provider: 'fallback', providers: { ...p1, ...p2 } };
+    }
+
+    const storyboardData = validateStoryboard(parseJsonOrThrow(result.content));
+    return {
+      storyboard: storyboardData,
+      provider: 'dashscope',
+      providers: { ...p1, ...p2, storyboard: result.model },
+    };
   } catch (error: any) {
     console.error('分镜生成失败:', error?.message || error);
     return { storyboard: buildFallbackStoryboard(), provider: 'fallback' };
@@ -386,18 +487,24 @@ export async function continueConversation(
 
 请根据用户的反馈和要求，修改和完善脚本。保持脚本的格式（每页以"第X页："开头），确保内容适合制作成漫画绘本。`;
 
-  // 构建新的消息列表，替换系统提示词
-  const messages: DeepSeekMessage[] = [
+  const messages: DashScopeMessage[] = [
     { role: 'system', content: systemPrompt },
-    ...conversationHistory,
+    ...toDashScopeMessages(conversationHistory),
     { role: 'user', content: userMessage },
   ];
 
-  try {
-    return await chatWithFallback(messages, { temperature: 0.8, max_tokens: 3000 });
-  } catch (error: any) {
-    console.error('对话失败:', error?.message || error);
-    return { content: 'AI 当前繁忙，请稍后再试', provider: 'fallback' };
-  }
+  const candidates: ModelCandidate[] = [
+    { model: 'qwen2.5-72b-instruct' },
+    { model: 'deepseek-v3.2' },
+    { model: 'deepseek-r1-distill-qwen-32b' },
+    { model: 'deepseek-r1-distill-qwen-14b' },
+  ];
+
+  const result = await callWithModelFallback('chat', candidates, messages, {
+    temperature: 0.8,
+    max_tokens: 2600,
+    requestTimeoutMs: stageTimeoutMs('chat'),
+  });
+  return result;
 }
 

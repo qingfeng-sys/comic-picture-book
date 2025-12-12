@@ -144,8 +144,8 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
     ctx.textAlign = 'left'; // 先设置为left用于计算宽度
 
     dialogues.forEach((dialogue) => {
-      // 只使用text字段，不包含角色名
-      const text = dialogue.text;
+      // 为避免“说话人错配/难辨”的观感问题，气泡里展示“角色名：对白”
+      const text = `${dialogue.role}：${dialogue.text}`;
 
       // 计算文本换行
       const lines = wrapText(ctx, text, maxBubbleWidth - bubblePadding * 2);
@@ -180,6 +180,15 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
       bubbleX = Math.max(bubbleMargin, Math.min(canvasWidth - bubbleWidth - bubbleMargin, bubbleX));
       bubbleY = Math.max(bubbleMargin, Math.min(canvasHeight - bubbleHeight - bubbleMargin - 80, bubbleY)); // 底部留80px给旁白
 
+      // 避脸：如果气泡会遮挡头部点（targetX/targetY），尝试换位（侧边/下方）
+      const adjusted = adjustBubbleToAvoidHead(
+        { bubbleX, bubbleY, bubbleWidth, bubbleHeight },
+        { targetX, targetY },
+        { canvasWidth, canvasHeight, bubbleMargin }
+      );
+      bubbleX = adjusted.bubbleX;
+      bubbleY = adjusted.bubbleY;
+
       // 绘制气泡背景
       ctx.fillStyle = '#FFFFFF';
       ctx.strokeStyle = '#000000';
@@ -200,15 +209,66 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
         ctx.fillText(line, textX, lineY);
       });
 
-      // 绘制尾巴指向角色
+      // 绘制尾巴指向角色（气泡在头顶上方用底部尾巴，否则用顶部尾巴）
       const tailBaseX = Math.min(Math.max(targetX, bubbleX + 15), bubbleX + bubbleWidth - 15);
       const isLeft = targetX < bubbleX + bubbleWidth / 2;
-      drawSpeechTail(ctx, tailBaseX, bubbleY + bubbleHeight * 0.9, isLeft, borderWidth);
+      const tailY = bubbleY < targetY ? bubbleY + bubbleHeight * 0.9 : bubbleY + bubbleHeight * 0.1;
+      drawSpeechTail(ctx, tailBaseX, tailY, isLeft, borderWidth);
       
       // 重置textAlign
       ctx.textAlign = 'left';
     });
   };
+
+  function adjustBubbleToAvoidHead(
+    bubble: { bubbleX: number; bubbleY: number; bubbleWidth: number; bubbleHeight: number },
+    head: { targetX: number; targetY: number },
+    canvas: { canvasWidth: number; canvasHeight: number; bubbleMargin: number }
+  ) {
+    const headRadius = Math.max(28, canvas.canvasWidth / 26);
+    const maxY = canvas.canvasHeight - bubble.bubbleHeight - canvas.bubbleMargin - 80; // 底部旁白预留
+
+    const intersects = (x: number, y: number) =>
+      circleIntersectsRect(head.targetX, head.targetY, headRadius, x, y, bubble.bubbleWidth, bubble.bubbleHeight);
+
+    if (!intersects(bubble.bubbleX, bubble.bubbleY)) return bubble;
+
+    const candidates: Array<{ x: number; y: number }> = [];
+
+    // 1) 继续尝试更靠上（如果有空间）
+    candidates.push({ x: bubble.bubbleX, y: head.targetY - bubble.bubbleHeight - headRadius * 1.2 });
+    // 2) 左侧/右侧贴边
+    candidates.push({ x: head.targetX - bubble.bubbleWidth - canvas.bubbleMargin, y: head.targetY - bubble.bubbleHeight / 2 });
+    candidates.push({ x: head.targetX + canvas.bubbleMargin, y: head.targetY - bubble.bubbleHeight / 2 });
+    // 3) 下方（当头顶空间不足时）
+    candidates.push({ x: bubble.bubbleX, y: head.targetY + headRadius * 0.6 });
+
+    for (const c of candidates) {
+      const x = Math.max(canvas.bubbleMargin, Math.min(canvas.canvasWidth - bubble.bubbleWidth - canvas.bubbleMargin, c.x));
+      const y = Math.max(canvas.bubbleMargin, Math.min(maxY, c.y));
+      if (!intersects(x, y)) {
+        return { ...bubble, bubbleX: x, bubbleY: y };
+      }
+    }
+
+    return bubble;
+  }
+
+  function circleIntersectsRect(
+    cx: number,
+    cy: number,
+    r: number,
+    rx: number,
+    ry: number,
+    rw: number,
+    rh: number
+  ) {
+    const closestX = Math.max(rx, Math.min(cx, rx + rw));
+    const closestY = Math.max(ry, Math.min(cy, ry + rh));
+    const dx = cx - closestX;
+    const dy = cy - closestY;
+    return dx * dx + dy * dy <= r * r;
+  }
 
   /**
    * 绘制对话气泡（旧格式兼容）

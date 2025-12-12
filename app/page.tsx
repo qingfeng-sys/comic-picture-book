@@ -459,31 +459,17 @@ export default function Home() {
                             }
                             try {
                               const { downloadCanvasesAsZip } = await import('@/lib/downloadUtils');
+                              const { renderComicPageToCanvas } = await import('@/lib/comicPageRenderer');
                               // 创建临时Canvas元素来下载
                               const canvases: Array<{ canvas: HTMLCanvasElement; filename: string }> = [];
                               
                               for (let i = 0; i < comicBook.pages.length; i++) {
                                 const page = comicBook.pages[i];
-                                const img = new Image();
-                                img.crossOrigin = 'anonymous';
-                                
-                                await new Promise<void>((resolve, reject) => {
-                                  img.onload = () => {
-                                    const canvas = document.createElement('canvas');
-                                    canvas.width = img.width;
-                                    canvas.height = img.height;
-                                    const ctx = canvas.getContext('2d');
-                                    if (ctx) {
-                                      ctx.drawImage(img, 0, 0);
-                                      canvases.push({
-                                        canvas,
-                                        filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
-                                      });
-                                    }
-                                    resolve();
-                                  };
-                                  img.onerror = reject;
-                                  img.src = page.imageUrl;
+                                // 关键：离屏渲染，把“对话气泡/旁白”也画进导出图，避免下载后缺失
+                                const canvas = await renderComicPageToCanvas(page);
+                                canvases.push({
+                                  canvas,
+                                  filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
                                 });
                               }
 

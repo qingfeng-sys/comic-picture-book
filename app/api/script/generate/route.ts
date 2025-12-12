@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { generateScriptWithDeepSeek, generateStoryboardWithDeepSeek, continueConversation, DeepSeekMessage } from '@/lib/deepseek';
+import {
+  generateScriptWithDeepSeek,
+  generateStoryboardWithDeepSeek,
+  continueConversation,
+  DeepSeekMessage,
+  generateStoryOutline,
+  generateStoryScriptFromOutline,
+} from '@/lib/deepseek';
 import { StoryboardData } from '@/types';
 import { validationError, maskServerError } from '@/lib/apiAuth';
 import { withApiProtection } from '@/lib/security/withApiProtection';
@@ -19,6 +26,8 @@ async function postHandler(request: NextRequest) {
         )
         .optional(),
       outputFormat: z.enum(['script', 'storyboard']).optional(),
+      // 可选：仅生成大纲（调试/扩展用），前端暂不使用
+      stage: z.enum(['outline', 'script', 'storyboard']).optional(),
     });
 
     const parseResult = schema.safeParse(await request.json());
@@ -35,18 +44,75 @@ async function postHandler(request: NextRequest) {
       );
     }
 
-    // 支持两种输出格式：storyboard（结构化分镜）或 script（传统文本脚本）
-    // 为兼容旧版前端，默认仍返回 script；前端若需要分镜，请传 outputFormat: 'storyboard'
+    // 兼容旧版：仍支持 outputFormat=script|storyboard
+    // 新版逻辑：大纲(JSON) → 半结构化剧本 → 分镜(JSON)
     const format = outputFormat || 'script';
+    const requestedStage = parseResult.data.stage;
 
-    if (format === 'storyboard') {
-      // 生成结构化分镜数据
+    // 对话续写：如果带 conversationHistory 且 format=script，沿用 continueConversation（更贴近“修改/续写”）
+    const hasHistory = (conversationHistory || []).length > 0;
+    if (hasHistory && format === 'script' && !requestedStage) {
+      const result = await continueConversation(prompt, conversationHistory || []);
+      logger.info(
+        {
+          provider: result.provider,
+          model: result.model,
+          mode: 'chat_script',
+        },
+        'script_generate_provider'
+      );
+      return NextResponse.json({
+        success: true,
+        data: {
+          script: result.content,
+          provider: result.model || result.provider,
+        },
+      });
+    }
+
+    // 支持 stage 精确控制（未来可开放给前端）
+    if (requestedStage === 'outline') {
+      const outlineResult = await generateStoryOutline(prompt, conversationHistory || []);
+      logger.info(
+        {
+          provider: 'dashscope',
+          model: outlineResult.providers.outline,
+          mode: 'outline',
+        },
+        'script_generate_provider'
+      );
+      return NextResponse.json({
+        success: true,
+        data: {
+          outline: outlineResult.outline,
+          provider: outlineResult.providers.outline || 'dashscope',
+        },
+      });
+    }
+
+    if (requestedStage === 'script') {
+      const outlineResult = await generateStoryOutline(prompt, conversationHistory || []);
+      const scriptResult = await generateStoryScriptFromOutline(outlineResult.outline, conversationHistory || []);
+      return NextResponse.json({
+        success: true,
+        data: {
+          outline: outlineResult.outline,
+          script: scriptResult.script,
+          provider: scriptResult.providers.script || 'dashscope',
+          providers: { ...outlineResult.providers, ...scriptResult.providers },
+        },
+      });
+    }
+
+    if (format === 'storyboard' || requestedStage === 'storyboard') {
+      // 生成结构化分镜数据（内部包含：大纲→剧本→分镜）
       const storyboardResult = await generateStoryboardWithDeepSeek(prompt, conversationHistory || []);
 
       logger.info(
         {
           provider: storyboardResult.provider,
           mode: 'storyboard',
+          providers: storyboardResult.providers,
         },
         'script_generate_provider'
       );
@@ -55,16 +121,18 @@ async function postHandler(request: NextRequest) {
         success: true,
         data: {
           storyboard: storyboardResult.storyboard,
-          provider: storyboardResult.provider,
+          provider: storyboardResult.providers?.storyboard || storyboardResult.provider,
+          providers: storyboardResult.providers,
         },
       });
     } else {
-      // 传统文本脚本格式（保持向后兼容）
+      // 文本脚本（内部包含：大纲→剧本）
       const result = await generateScriptWithDeepSeek(prompt, conversationHistory);
 
       logger.info(
         {
           provider: result.provider,
+          model: result.model,
           mode: 'script',
         },
         'script_generate_provider'
@@ -74,7 +142,7 @@ async function postHandler(request: NextRequest) {
         success: true,
         data: {
           script: result.content,
-          provider: result.provider,
+          provider: result.model || result.provider,
         },
       });
     }

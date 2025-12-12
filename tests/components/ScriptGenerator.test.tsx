@@ -19,8 +19,13 @@ vi.mock('@/lib/scriptUtils', () => ({
 
 describe('ScriptGenerator component', () => {
   it('renders input area', () => {
-    render(<ScriptGenerator />);
-    expect(screen.getByText(/脚本生成/i)).toBeInTheDocument();
+    render(
+      <ScriptGenerator
+        onScriptComplete={() => {}}
+        onCancel={() => {}}
+      />
+    );
+    expect(screen.getByText(/生成故事脚本/i)).toBeInTheDocument();
   });
 });
 

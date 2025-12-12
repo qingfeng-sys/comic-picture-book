@@ -25,12 +25,14 @@ function resolveWanApiKey(): string {
   return apiKey;
 }
 
-export function isWanGenerationModel(model?: GenerationModel | string): model is GenerationModel {
-  return !!model && WAN_GENERATION_MODELS.includes(model as GenerationModel);
+type WanGenerationModel = (typeof WAN_GENERATION_MODELS)[number];
+
+export function isWanGenerationModel(model?: GenerationModel | string): model is WanGenerationModel {
+  return !!model && WAN_GENERATION_MODELS.includes(model as WanGenerationModel);
 }
 
 interface WanSubmitOptions {
-  model: GenerationModel;
+  model: WanGenerationModel;
   negative_prompt?: string;
   size?: string;
 }
