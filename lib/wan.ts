@@ -16,11 +16,11 @@ function resolveWanApiKey(): string {
   const apiKey =
     process.env.DASHSCOPE_API_KEY ||
     (process.env as any).DASHSCOPE_API_KEY ||
-    process.env.QWEN_API_KEY ||
+    process.env.QWEN_API_KEY || // 兼容旧命名
     (process.env as any).QWEN_API_KEY;
 
   if (!apiKey) {
-    throw new Error('未配置 DASHSCOPE_API_KEY / QWEN_API_KEY，无法调用通义万相文生图');
+    throw new Error('未配置 DASHSCOPE_API_KEY（或兼容的 QWEN_API_KEY），无法调用通义万相文生图');
   }
   return apiKey;
 }

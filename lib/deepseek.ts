@@ -67,9 +67,14 @@ async function fetchChat(
   }
 
   // Qwen 兼容 OpenAI 格式
-  const qwenKey = process.env.QWEN_API_KEY;
+  const qwenKey =
+    process.env.DASHSCOPE_API_KEY ||
+    (process.env as any).DASHSCOPE_API_KEY ||
+    process.env.QWEN_API_KEY || // 兼容旧命名
+    (process.env as any).QWEN_API_KEY;
+
   if (!qwenKey) {
-    throw new Error('QWEN_API_KEY未配置');
+    throw new Error('DASHSCOPE_API_KEY未配置');
   }
   const response = await withRetry(() =>
     axios.post<DeepSeekResponse>(

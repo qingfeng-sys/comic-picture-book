@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateComicPages, generateComicPagesFromStoryboard } from '@/lib/imageGenerator';
 import { saveImageToStorage } from '@/lib/imageStorage';
-import { StoryboardData, DialogueItem } from '@/types';
+import { StoryboardData, DialogueItem, GenerationModel } from '@/types';
 import { validationError, maskServerError } from '@/lib/apiAuth';
 import { withApiProtection } from '@/lib/security/withApiProtection';
 
@@ -40,25 +40,36 @@ async function postHandler(request: NextRequest) {
     }
 
     const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model } = parseResult.data;
+    const generationModel = (model as GenerationModel | undefined) || undefined;
 
     let pages;
     
     // 优先使用storyboard数据（新格式）
     if (storyboard && typeof storyboard === 'object' && storyboard.frames) {
       console.log('使用分镜数据生成绘本，共', storyboard.frames.length, '帧');
-      pages = await generateComicPagesFromStoryboard(
-        storyboard as StoryboardData,
-        startPageNumber || 1,
-        model
-      );
+      pages = generationModel
+        ? await generateComicPagesFromStoryboard(
+          storyboard as StoryboardData,
+          startPageNumber || 1,
+          generationModel
+        )
+        : await generateComicPagesFromStoryboard(
+          storyboard as StoryboardData,
+          startPageNumber || 1
+        );
     } else if (scriptSegment && typeof scriptSegment === 'string') {
       // 兼容旧格式：从文本提取
       console.log('使用文本脚本生成绘本');
-      pages = await generateComicPages(
-        scriptSegment,
-        startPageNumber || 1,
-        model
-      );
+      pages = generationModel
+        ? await generateComicPages(
+          scriptSegment,
+          startPageNumber || 1,
+          generationModel
+        )
+        : await generateComicPages(
+          scriptSegment,
+          startPageNumber || 1
+        );
     } else {
       return NextResponse.json(
         { success: false, error: '请提供有效的脚本片段或分镜数据' },
