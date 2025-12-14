@@ -5,7 +5,7 @@
 ## ✨ 功能特性
 
 ### 📝 脚本生成
-- AI智能生成故事脚本（基于DeepSeek API）
+- AI智能生成故事大纲/剧本/分镜（基于阿里云百炼 DashScope 文本生成）
 - 对话式交互，逐步完善脚本内容
 - 支持脚本编辑和保存
 
@@ -26,7 +26,7 @@
 
 ## 🚀 快速开始
 
-> 运行要求：Node.js 18+，自行提供有效的 DeepSeek / 七牛云 API Key（代码中存在开发调试用的回退密钥，部署前务必用自己的密钥覆盖）。
+> 运行要求：Node.js 18+，自行提供有效的 DashScope / 七牛云 API Key（部署前务必用自己的密钥覆盖）。
 
 ### 安装依赖
 ```bash
@@ -37,13 +37,17 @@ npm install
 
 创建 `.env.local` 文件：
 ```env
-# DeepSeek API（必需）- 用于脚本生成
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# DashScope（必需）- 用于故事大纲/剧本/分镜生成
+DASHSCOPE_API_KEY=your_dashscope_api_key_here
 
 # 七牛云API（必需）- 用于图像生成
 QINIU_API_KEY=your_qiniu_api_key_here
 # 可选：启用调用前密钥校验
 # ENABLE_API_KEY_VERIFICATION=true
+
+# （可选）DashScope 文本生成超时（毫秒，72B/80B 模型建议适当加大）
+# DASHSCOPE_SCRIPT_TIMEOUT_MS=90000
+# DASHSCOPE_STORYBOARD_TIMEOUT_MS=120000
 ```
 
 ### 运行开发服务器
@@ -80,7 +84,7 @@ npm run dev
 - **框架**: Next.js 16 + React 18
 - **语言**: TypeScript 5.0
 - **样式**: Tailwind CSS 3.3
-- **AI服务**: DeepSeek API（脚本生成）、七牛云API（图像生成，默认模型 gemini-2.5-flash-image）
+- **AI服务**: DashScope 文本生成（故事大纲/剧本/分镜）、七牛云API/通义万相（图像生成，默认模型 gemini-2.5-flash-image）
 
 ## 📚 文档
 
