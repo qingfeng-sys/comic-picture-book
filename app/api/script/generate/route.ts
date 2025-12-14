@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
-  generateScriptWithDeepSeek,
-  generateStoryboardWithDeepSeek,
-  continueConversation,
-  DeepSeekMessage,
-  generateStoryOutline,
-  generateStoryScriptFromOutline,
-} from '@/lib/deepseek';
+  generateStoryScript,
+  generateStoryboard,
+  continueStoryConversation,
+  type StoryMessage,
+  generateOutline,
+  generateScriptFromOutline,
+} from '@/lib/storyGenerator';
 import { StoryboardData } from '@/types';
 import { validationError, maskServerError } from '@/lib/apiAuth';
 import { withApiProtection } from '@/lib/security/withApiProtection';
@@ -52,7 +52,7 @@ async function postHandler(request: NextRequest) {
     // 对话续写：如果带 conversationHistory 且 format=script，沿用 continueConversation（更贴近“修改/续写”）
     const hasHistory = (conversationHistory || []).length > 0;
     if (hasHistory && format === 'script' && !requestedStage) {
-      const result = await continueConversation(prompt, conversationHistory || []);
+      const result = await continueStoryConversation(prompt, conversationHistory || []);
       logger.info(
         {
           provider: result.provider,
@@ -72,7 +72,7 @@ async function postHandler(request: NextRequest) {
 
     // 支持 stage 精确控制（未来可开放给前端）
     if (requestedStage === 'outline') {
-      const outlineResult = await generateStoryOutline(prompt, conversationHistory || []);
+      const outlineResult = await generateOutline(prompt, conversationHistory || []);
       logger.info(
         {
           provider: 'dashscope',
@@ -91,8 +91,8 @@ async function postHandler(request: NextRequest) {
     }
 
     if (requestedStage === 'script') {
-      const outlineResult = await generateStoryOutline(prompt, conversationHistory || []);
-      const scriptResult = await generateStoryScriptFromOutline(outlineResult.outline, conversationHistory || []);
+      const outlineResult = await generateOutline(prompt, conversationHistory || []);
+      const scriptResult = await generateScriptFromOutline(outlineResult.outline, conversationHistory || []);
       return NextResponse.json({
         success: true,
         data: {
@@ -106,7 +106,7 @@ async function postHandler(request: NextRequest) {
 
     if (format === 'storyboard' || requestedStage === 'storyboard') {
       // 生成结构化分镜数据（内部包含：大纲→剧本→分镜）
-      const storyboardResult = await generateStoryboardWithDeepSeek(prompt, conversationHistory || []);
+      const storyboardResult = await generateStoryboard(prompt, conversationHistory || []);
 
       logger.info(
         {
@@ -127,7 +127,7 @@ async function postHandler(request: NextRequest) {
       });
     } else {
       // 文本脚本（内部包含：大纲→剧本）
-      const result = await generateScriptWithDeepSeek(prompt, conversationHistory);
+      const result = await generateStoryScript(prompt, conversationHistory as StoryMessage[] | undefined);
 
       logger.info(
         {

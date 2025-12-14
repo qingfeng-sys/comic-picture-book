@@ -135,7 +135,7 @@ function validateStoryboard(storyboardData: any): StoryboardData {
   return storyboardData as StoryboardData;
 }
 
-export interface DeepSeekMessage {
+export interface StoryMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
 }
@@ -185,7 +185,7 @@ async function callWithModelFallback(
   return { content: 'AI 当前繁忙，请稍后再试', provider: 'fallback' };
 }
 
-function toDashScopeMessages(messages: DeepSeekMessage[]): DashScopeMessage[] {
+function toDashScopeMessages(messages: StoryMessage[]): DashScopeMessage[] {
   return messages.map(m => ({ role: m.role, content: m.content }));
 }
 
@@ -214,9 +214,9 @@ function stageTimeoutMs(stage: 'outline' | 'script' | 'storyboard' | 'chat'): nu
  * 1) 故事大纲：优先 qwen-flash（enable_thinking=false），失败回退到 qwen3-30b-a3b-instruct-2507、deepseek-r1-distill-qwen-14b
  * 输出：严格 JSON
  */
-export async function generateStoryOutline(
+export async function generateOutline(
   userPrompt: string,
-  conversationHistory: DeepSeekMessage[] = []
+  conversationHistory: StoryMessage[] = []
 ): Promise<{ outline: StoryOutline; providers: PipelineProviders }> {
   const systemPrompt = `你是一个专业的故事大纲策划师。请根据用户的故事描述，生成“绘本/漫画”创作所需的大纲。
 
@@ -283,9 +283,9 @@ Schema:
  * 2) 故事脚本：使用大纲作为输入，输出“半结构化剧本格式”（非 JSON）
  * 优先 deepseek-v3.2（DashScope），失败回退 deepseek-r1-distill-qwen-32b、deepseek-r1-distill-qwen-14b
  */
-export async function generateStoryScriptFromOutline(
+export async function generateScriptFromOutline(
   outline: StoryOutline,
-  conversationHistory: DeepSeekMessage[] = []
+  conversationHistory: StoryMessage[] = []
 ): Promise<{ script: string; providers: PipelineProviders }> {
   const systemPrompt = `你是一个专业的绘本/漫画编剧。请基于“故事大纲 JSON”写出一个适合绘本/漫画分镜的**半结构化剧本**。
 
@@ -339,13 +339,13 @@ export async function generateStoryScriptFromOutline(
 /**
  * 调用DeepSeek API生成脚本
  */
-export async function generateScriptWithDeepSeek(
+export async function generateStoryScript(
   userPrompt: string,
-  conversationHistory: DeepSeekMessage[] = []
+  conversationHistory: StoryMessage[] = []
 ): Promise<ChatResult> {
   // 兼容旧调用：这里按新流程生成“剧本”（大纲→剧本），并返回 content（非 JSON）
-  const { outline } = await generateStoryOutline(userPrompt, conversationHistory);
-  const { script, providers } = await generateStoryScriptFromOutline(outline, conversationHistory);
+  const { outline } = await generateOutline(userPrompt, conversationHistory);
+  const { script, providers } = await generateScriptFromOutline(outline, conversationHistory);
   return { content: script, provider: 'dashscope', model: providers.script };
 }
 
@@ -358,14 +358,14 @@ interface StoryboardResult {
 /**
  * 生成结构化分镜数据（JSON格式），返回提供方标记
  */
-export async function generateStoryboardWithDeepSeek(
+export async function generateStoryboard(
   userPrompt: string,
-  conversationHistory: DeepSeekMessage[] = []
+  conversationHistory: StoryMessage[] = []
 ): Promise<StoryboardResult> {
   // 新流程：大纲(JSON) → 半结构化剧本 → 分镜(JSON)
   try {
-    const { outline, providers: p1 } = await generateStoryOutline(userPrompt, conversationHistory);
-    const { script, providers: p2 } = await generateStoryScriptFromOutline(outline, conversationHistory);
+    const { outline, providers: p1 } = await generateOutline(userPrompt, conversationHistory);
+    const { script, providers: p2 } = await generateScriptFromOutline(outline, conversationHistory);
 
     // 系统提示词：强制输出纯JSON，不允许任何自然语言
     const systemPrompt = `你是一个JSON数据生成器。你的任务是根据用户提供的“故事剧本”，生成结构化的漫画分镜JSON数据。
@@ -492,9 +492,9 @@ export async function generateStoryboardWithDeepSeek(
  * 继续对话，完善脚本
  * 在对话模式下，系统提示词会稍微调整，更注重修改和完善
  */
-export async function continueConversation(
+export async function continueStoryConversation(
   userMessage: string,
-  conversationHistory: DeepSeekMessage[]
+  conversationHistory: StoryMessage[]
 ): Promise<ChatResult> {
   // 在对话模式下，使用更灵活的提示词
   const systemPrompt = `你是一个专业的故事脚本创作助手。用户正在完善一个漫画绘本脚本。
