@@ -5,9 +5,12 @@ import type { CharacterProfile, GenerationModel } from '@/types';
 import { deleteCharacter, loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
 
 const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
-  { value: 'wanx-v1', label: '万相文生图 v1（DashScope，wanx-v1）' },
-  { value: 'gemini-2.5-flash-image', label: 'Gemini 2.5 Flash Image（七牛）' },
-  { value: 'kling-v1', label: 'Kling v1（七牛）' },
+  { value: 'wan2.5-t2i-preview', label: '通义万相 V2.5 Preview（文生图）' },
+  { value: 'wan2.2-t2i-plus', label: '通义万相 2.2 Plus（文生图）' },
+  { value: 'wan2.2-t2i-flash', label: '通义万相 2.2 Flash（文生图）' },
+  { value: 'wanx2.1-t2i-plus', label: '通义万相 X2.1 Plus（文生图）' },
+  { value: 'wanx2.1-t2i-turbo', label: '通义万相 X2.1 Turbo（文生图）' },
+  { value: 'wanx2.0-t2i-turbo', label: '通义万相 X2.0 Turbo（文生图）' },
 ];
 
 export default function CharacterLibrary() {
@@ -17,7 +20,7 @@ export default function CharacterLibrary() {
   const [description, setDescription] = useState('');
   const [visual, setVisual] = useState('');
   const [matchNames, setMatchNames] = useState(''); // 逗号分隔
-  const [model, setModel] = useState<GenerationModel>('gemini-2.5-flash-image');
+  const [model, setModel] = useState<GenerationModel>('wan2.2-t2i-plus');
 
   const [isGenerating, setIsGenerating] = useState(false);
 

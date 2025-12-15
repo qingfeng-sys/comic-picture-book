@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChatMessage, StoryboardData, Script, CharacterProfile } from '@/types';
+import { ChatMessage, StoryboardData, Script } from '@/types';
 import ChatInterface from '../ChatInterface/ChatInterface';
-import { upsertCharacter } from '@/lib/characterUtils';
 
 interface ScriptGeneratorProps {
   onScriptComplete: (script: string, title: string, scriptId?: string) => void;
@@ -21,7 +20,6 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
   const [currentScript, setCurrentScript] = useState('');
   const [currentStoryboard, setCurrentStoryboard] = useState<StoryboardData | null>(null);
   const [outputFormat, setOutputFormat] = useState<'script' | 'storyboard'>('storyboard'); // 默认生成分镜
-  const [isAutoGeneratingCharacters, setIsAutoGeneratingCharacters] = useState(false);
 
   // 如果是编辑模式，预填充数据
   useEffect(() => {
@@ -90,34 +88,6 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
             { role: 'user', content: initialPrompt, timestamp: new Date().toISOString() },
             { role: 'assistant', content: `已生成${storyboardData.frames.length}个分镜帧`, timestamp: new Date().toISOString() },
           ]);
-
-          // 自动生成角色参考图（用户无需手动维护角色库）
-          setIsAutoGeneratingCharacters(true);
-          try {
-            const charRes = await fetch('/api/character/auto-generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: initialPrompt }),
-            });
-            const charJson = await charRes.json();
-            if (charJson.success && Array.isArray(charJson.data?.characters)) {
-              const chars: CharacterProfile[] = charJson.data.characters;
-              chars.forEach((c) => upsertCharacter(c));
-              // 在对话区提示用户（不打扰）
-              setConversationHistory((prev) => [
-                ...prev,
-                {
-                  role: 'assistant',
-                  content: `已自动生成角色参考图：${chars.filter(c => !!c.referenceImageUrl).length}/${chars.length}（可用于提升跨帧一致性）`,
-                  timestamp: new Date().toISOString(),
-                },
-              ]);
-            }
-          } catch (e) {
-            console.warn('自动生成角色参考图失败（可忽略）:', e);
-          } finally {
-            setIsAutoGeneratingCharacters(false);
-          }
         } else if (result.data?.script) {
           // 处理传统脚本格式
           const script = result.data.script;
@@ -317,11 +287,6 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
               取消
             </button>
           </div>
-          {isAutoGeneratingCharacters && (
-            <p className="text-xs text-gray-500 mt-2">
-              正在自动生成角色参考图（用于提升跨帧一致性）...
-            </p>
-          )}
         </div>
       ) : (
         <div className="space-y-4">

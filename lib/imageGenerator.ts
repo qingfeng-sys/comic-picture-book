@@ -251,6 +251,49 @@ function extractSceneDescription(text: string): string {
   return description || '温馨的场景，角色互动';
 }
 
+import fs from 'fs/promises';
+import path from 'path';
+
+/**
+ * 检查参考图是否为本地路径，如果是则转换为Base64
+ */
+async function checkAndConvertReferenceImage(url?: string): Promise<string | undefined> {
+  if (!url) return undefined;
+
+  // 如果已经是base64或http链接，直接返回
+  if (url.startsWith('data:') || url.startsWith('http')) {
+    return url;
+  }
+
+  // 检查是否为本地相对路径 (e.g. /comic-assets/xxx.png)
+  if (url.startsWith('/')) {
+    try {
+      // 移除开头的斜杠，构建完整文件路径
+      const relativePath = url.startsWith('/') ? url.slice(1) : url;
+      const filePath = path.join(process.cwd(), 'public', relativePath);
+      
+      // 读取文件
+      const fileBuffer = await fs.readFile(filePath);
+      const base64 = fileBuffer.toString('base64');
+      
+      // 根据扩展名确定MIME类型
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeType = ext === '.png' ? 'image/png' : 
+                       ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 
+                       'image/png';
+                       
+      console.log(`[参考图处理] 已将本地图片 ${url} 转换为 Base64`);
+      return `data:${mimeType};base64,${base64}`;
+    } catch (error) {
+      console.warn(`[参考图处理] 读取本地图片失败: ${url}`, error);
+      // 读取失败时原样返回，让后续逻辑处理（可能会失败但保留原始错误）
+      return url;
+    }
+  }
+
+  return url;
+}
+
 /**
  * 生成绘本页面图像
  * 使用七牛云文生图API（kling-v1模型）
@@ -267,6 +310,13 @@ export async function generateComicPageImage(
   const modelToUse = normalizeGenerationModel(generationModel);
   const negativePrompt = '恐怖，暴力，成人内容，低质量，模糊，变形';
   
+  // 处理参考图：如果是本地路径，转换为Base64
+  const processedReference = await checkAndConvertReferenceImage(characterReference);
+  
+  if (characterReference && processedReference !== characterReference) {
+    console.log(`[生成第${pageNumber}页] 使用转换后的Base64参考图 (原路径: ${characterReference})`);
+  }
+  
   try {
     console.log(`正在生成第${pageNumber}页图像，提示词: ${prompt}`);
     
@@ -275,6 +325,8 @@ export async function generateComicPageImage(
         model: modelToUse,
         negative_prompt: negativePrompt,
         size: '1024*1024',
+        // wanx-v1 和 wan2.5-i2i-preview 支持参考图：透传 image_reference 用于跨帧一致性
+        image_reference: (modelToUse === 'wanx-v1' || modelToUse === 'wan2.5-i2i-preview') ? processedReference : undefined,
       })
       : await generateImageWithQiniu(
         prompt,
@@ -284,7 +336,7 @@ export async function generateComicPageImage(
           human_fidelity: 0.8,
           model: modelToUse,
           // 七牛支持 image_reference（用于角色一致性/图生图参考）
-          image_reference: characterReference,
+          image_reference: processedReference,
         }
       );
     

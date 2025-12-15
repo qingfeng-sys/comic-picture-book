@@ -28,6 +28,8 @@ export const WAN_GENERATION_MODELS = [
   'wanx2.0-t2i-turbo',
   // 万相文生图 v1（DashScope 控制台 wanx-v1）
   'wanx-v1',
+  // 万相图生图 v2.5 Preview（DashScope 控制台 wan2.5-i2i-preview）
+  'wan2.5-i2i-preview',
 ] as const;
 
 export const QINIU_GENERATION_MODELS = [

@@ -197,7 +197,10 @@ export async function generateImageWithQiniu(
     human_fidelity: options?.human_fidelity,
     cfg_scale: options?.cfg_scale,
     mode: options?.mode,
-    image_reference: options?.image_reference,
+    // 七牛/OpenAI 兼容接口通常要求 image_reference 为 http/https URL
+    // 如果传入 Base64 (data:...)，可能会被误判为文本或导致参数错误（产生乱码图）
+    // 因此这里做一个保护：如果是 Base64，则不传给七牛，避免毁图
+    image_reference: options?.image_reference?.startsWith('data:') ? undefined : options?.image_reference,
   };
 
   try {

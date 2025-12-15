@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel, CharacterProfile } from '@/types';
 import { createScriptWithSegments, loadScriptsFromStorage, importScriptFromText, extractStoryboardFromScript, saveComicBookToStorage } from '@/lib/scriptUtils';
 import ComicPageCanvas from '@/components/ComicPageCanvas/ComicPageCanvas';
-import { loadCharactersFromStorage } from '@/lib/characterUtils';
+import { loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
 
 const MODEL_OPTIONS: Array<{
   value: GenerationModel;
@@ -13,53 +13,33 @@ const MODEL_OPTIONS: Array<{
   isAsync: boolean;
 }> = [
   {
-    value: 'wan2.5-t2i-preview',
-    label: '通义万相 V2.5 Preview',
-    description: '异步，通义万相最新版预览，质量高',
+    value: 'wanx-v1',
+    label: '万相 wanx-v1（支持参考图）',
+    description: '异步任务，支持参考图/一致性约束（推荐）',
     isAsync: true,
   },
   {
-    value: 'wan2.2-t2i-plus',
-    label: '通义万相 2.2 Plus',
-    description: '异步，均衡质量与速度，适合主用',
-    isAsync: true,
-  },
-  {
-    value: 'wan2.2-t2i-flash',
-    label: '通义万相 2.2 Flash',
-    description: '异步，快速出图，质量略低',
-    isAsync: true,
-  },
-  {
-    value: 'wanx2.1-t2i-plus',
-    label: '通义万相 X2.1 Plus',
-    description: '异步，高清质量，速度中等',
-    isAsync: true,
-  },
-  {
-    value: 'wanx2.1-t2i-turbo',
-    label: '通义万相 X2.1 Turbo',
-    description: '异步，加速模式，适合快速预览',
-    isAsync: true,
-  },
-  {
-    value: 'wanx2.0-t2i-turbo',
-    label: '通义万相 X2.0 Turbo',
-    description: '异步，早期版本，速度快',
+    value: 'wan2.5-i2i-preview',
+    label: '万相 wan2.5-i2i-preview',
+    description: '图生图模型，强力参考图支持',
     isAsync: true,
   },
   {
     value: 'gemini-2.5-flash-image',
     label: 'Gemini 2.5 Flash Image（七牛）',
-    description: '同步返回，速度快',
+    description: '同步返回，支持参考图/一致性约束，速度快',
     isAsync: false,
   },
-  {
-    value: 'kling-v1',
-    label: 'Kling v1（七牛）',
-    description: '异步任务，质量高',
-    isAsync: true,
-  },
+];
+
+// 角色立绘：使用“仅文生图”的万相模型（不包含支持参考图的 wanx-v1）
+const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
+  { value: 'wan2.5-t2i-preview', label: '通义万相 V2.5 Preview（文生图）' },
+  { value: 'wan2.2-t2i-plus', label: '通义万相 2.2 Plus（文生图）' },
+  { value: 'wan2.2-t2i-flash', label: '通义万相 2.2 Flash（文生图）' },
+  { value: 'wanx2.1-t2i-plus', label: '通义万相 X2.1 Plus（文生图）' },
+  { value: 'wanx2.1-t2i-turbo', label: '通义万相 X2.1 Turbo（文生图）' },
+  { value: 'wanx2.0-t2i-turbo', label: '通义万相 X2.0 Turbo（文生图）' },
 ];
 
 interface ComicGeneratorProps {
@@ -74,11 +54,13 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   const [generatedPages, setGeneratedPages] = useState<ComicPage[]>([]);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
-  const [generationModel, setGenerationModel] = useState<GenerationModel>(MODEL_OPTIONS[0].value);
+  const [generationModel, setGenerationModel] = useState<GenerationModel>('wanx-v1');
   const [characters, setCharacters] = useState<CharacterProfile[]>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [useCharacterReferences, setUseCharacterReferences] = useState(true);
   const [showCharacterAdvanced, setShowCharacterAdvanced] = useState(false);
+  const [portraitModel, setPortraitModel] = useState<GenerationModel>('wan2.2-t2i-plus');
+  const [isGeneratingPortraits, setIsGeneratingPortraits] = useState(false);
 
   useEffect(() => {
     const scripts = loadScriptsFromStorage();
@@ -89,9 +71,48 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
     setSelectedCharacterIds(chars.filter(c => !!c.referenceImageUrl).map(c => c.id));
   }, []);
 
+  const refreshCharacters = () => {
+    const chars = loadCharactersFromStorage();
+    setCharacters(chars);
+    setSelectedCharacterIds(chars.filter(c => !!c.referenceImageUrl).map(c => c.id));
+  };
+
   const characterReferences = useCharacterReferences
     ? buildCharacterReferenceMap(characters.filter(c => selectedCharacterIds.includes(c.id)))
     : undefined;
+
+  const handleGeneratePortraits = async () => {
+    if (!selectedScript) {
+      alert('请先选择脚本');
+      return;
+    }
+    setIsGeneratingPortraits(true);
+    try {
+      // 使用“脚本内容”作为输入，让后端通过大纲/角色表推断并生成立绘
+      const res = await fetch('/api/character/auto-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: selectedScript.content,
+          model: portraitModel,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success || !Array.isArray(json.data?.characters)) {
+        alert(json.error || '生成角色立绘失败');
+        return;
+      }
+      const chars: CharacterProfile[] = json.data.characters;
+      chars.forEach((c) => upsertCharacter(c));
+      refreshCharacters();
+      alert(`角色立绘生成完成：${chars.filter((c) => !!c.referenceImageUrl).length}/${chars.length}`);
+    } catch (e) {
+      console.error(e);
+      alert('生成失败，请检查网络连接');
+    } finally {
+      setIsGeneratingPortraits(false);
+    }
+  };
 
   const handleScriptSelect = (script: Script) => {
     const scriptWithSegments = createScriptWithSegments(script.title, script.content);
@@ -119,6 +140,15 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
     if (!selectedScript || selectedSegmentId === null) {
       alert('请选择脚本和片段');
       return;
+    }
+
+    // 如果启用了参考图但没有任何可用 referenceImageUrl，提示用户先生成立绘或关闭开关
+    if (useCharacterReferences) {
+      const hasAnyRef = characters.some((c) => !!c.referenceImageUrl);
+      if (!hasAnyRef) {
+        alert('已启用“角色参考图”，但当前角色库没有任何立绘。请先点击“生成角色立绘”，或关闭该开关后继续生成绘本。');
+        return;
+      }
     }
 
     const segment = selectedScript.segments.find(s => s.segmentId === selectedSegmentId);
@@ -325,9 +355,38 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
               匹配规则：按对话里的 <code>role</code>（或“角色：对白”中的角色名）匹配角色名/匹配名。
             </p>
 
+            <div className="bg-white rounded-lg border border-purple-200 p-3 mb-3">
+              <div className="text-sm font-semibold text-gray-800 mb-2">第 1 步：生成角色立绘（可选）</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <select
+                  className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm"
+                  value={portraitModel}
+                  onChange={(e) => setPortraitModel(e.target.value as GenerationModel)}
+                  disabled={isGenerating || isGeneratingPortraits}
+                >
+                  {PORTRAIT_MODELS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn-secondary sm:col-span-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleGeneratePortraits}
+                  disabled={!selectedScript || isGenerating || isGeneratingPortraits}
+                >
+                  {isGeneratingPortraits ? '生成角色立绘中...' : '生成角色立绘'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                说明：该步骤会用“脚本内容”推断角色并生成立绘，生成后会自动写入角色库并在下方自动勾选。
+              </p>
+            </div>
+
             {characters.length === 0 ? (
               <div className="text-xs text-gray-500">
-                还没有角色参考图。请先到“角色库”生成角色立绘。
+                还没有角色参考图。你可以先在上方点击“生成角色立绘”，也可以到“角色库”手动生成。
               </div>
             ) : (
               <>

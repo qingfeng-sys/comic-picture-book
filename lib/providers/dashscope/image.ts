@@ -3,6 +3,8 @@ import { GenerationModel, WAN_GENERATION_MODELS } from '@/types';
 
 const WAN_API_BASE = 'https://dashscope.aliyuncs.com/api/v1';
 const WAN_SERVICE_PATH = '/services/aigc/text2image/image-synthesis';
+const WAN_I2I_SERVICE_PATH = '/services/aigc/image2image/image-synthesis';
+
 const REQUEST_TIMEOUT_MS = 12_000;
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_ATTEMPTS = 40; // 约2分钟
@@ -35,6 +37,11 @@ interface WanSubmitOptions {
   model: WanGenerationModel;
   negative_prompt?: string;
   size?: string;
+  /**
+   * 参考图（仅 wanx-v1 支持）
+   * 说明：DashScope 万相的参考图字段以控制台文档为准；这里按 image_reference 透传。
+   */
+  image_reference?: string;
 }
 
 interface WanSubmitResult {
@@ -62,6 +69,7 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
   const apiKey = resolveWanApiKey();
   const cleanPrompt = normalizePrompt(prompt);
 
+  // 构建请求Payload
   const payload: any = {
     model: options.model,
     input: {
@@ -73,6 +81,29 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
     },
   };
 
+  // 根据模型选择不同的服务路径和参数结构
+  let servicePath = WAN_SERVICE_PATH;
+
+  // I2I 模型 (wan2.5-i2i-preview)
+  if (options.model === 'wan2.5-i2i-preview') {
+    servicePath = WAN_I2I_SERVICE_PATH;
+    // I2I 模型需要 images 数组参数
+    if (options.image_reference) {
+      payload.input.images = [options.image_reference];
+    }
+    // I2I 模型通常不需要 size (会跟随原图或默认)，但也可能支持
+    // 确保 prompt_extend 参数开启（参考 curl 示例）
+    payload.parameters.prompt_extend = true;
+  }
+  
+  // T2I 模型 (wanx-v1 等)
+  else {
+    // wanx-v1 支持 ref_img
+    if (options.model === 'wanx-v1' && options.image_reference) {
+      payload.input.ref_img = options.image_reference;
+    }
+  }
+
   if (options.negative_prompt) {
     payload.input.negative_prompt = options.negative_prompt;
   }
@@ -83,7 +114,7 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
     'X-DashScope-Async': 'enable',
   };
 
-  const response = await http.post(WAN_SERVICE_PATH, payload, { headers });
+  const response = await http.post(servicePath, payload, { headers });
   const data = response.data || {};
 
   const taskId =
@@ -176,6 +207,7 @@ export async function generateImageWithWan(
     model?: GenerationModel;
     negative_prompt?: string;
     size?: string;
+    image_reference?: string;
   }
 ): Promise<string> {
   const model = options?.model && isWanGenerationModel(options.model)
@@ -186,6 +218,7 @@ export async function generateImageWithWan(
     model,
     negative_prompt: options?.negative_prompt,
     size: options?.size,
+    image_reference: options?.image_reference,
   });
 
   if (submitResult.imageUrl) {
