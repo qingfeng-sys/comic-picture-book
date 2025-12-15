@@ -76,6 +76,7 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
         { id: 'comic', label: '绘本生成', icon: '🎨' },
       ]
     },
+    { id: 'characters', label: '角色库', icon: '👥', hasSubmenu: false },
     { id: 'my-works', label: '我的作品', icon: '📚', hasSubmenu: false },
     { id: 'personal', label: '个人中心', icon: '👤', hasSubmenu: false },
     { id: 'publish', label: '作品发布', icon: '🚀', hasSubmenu: false },
@@ -88,7 +89,7 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
     }
     
     // 检查需要登录的功能
-    const requiresLogin = ['script', 'comic', 'my-works', 'personal'];
+    const requiresLogin = ['script', 'comic', 'characters', 'my-works', 'personal'];
     if (requiresLogin.includes(menuId) && !currentUser) {
       setShowLoginModal(true);
       return;

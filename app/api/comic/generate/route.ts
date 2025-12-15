@@ -32,6 +32,7 @@ async function postHandler(request: NextRequest) {
       scriptId: z.string().optional(),
       segmentId: z.number().int().optional(),
       model: z.string().optional(),
+      characterReferences: z.record(z.string()).optional(), // role/name -> reference image url
     });
 
     const parseResult = schema.safeParse(await request.json());
@@ -39,7 +40,7 @@ async function postHandler(request: NextRequest) {
       return validationError();
     }
 
-    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model } = parseResult.data;
+    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model, characterReferences } = parseResult.data;
     const generationModel = (model as GenerationModel | undefined) || undefined;
 
     let pages;
@@ -51,11 +52,14 @@ async function postHandler(request: NextRequest) {
         ? await generateComicPagesFromStoryboard(
           storyboard as StoryboardData,
           startPageNumber || 1,
-          generationModel
+          generationModel,
+          characterReferences
         )
         : await generateComicPagesFromStoryboard(
           storyboard as StoryboardData,
-          startPageNumber || 1
+          startPageNumber || 1,
+          undefined,
+          characterReferences
         );
     } else if (scriptSegment && typeof scriptSegment === 'string') {
       // 兼容旧格式：从文本提取
@@ -64,11 +68,14 @@ async function postHandler(request: NextRequest) {
         ? await generateComicPages(
           scriptSegment,
           startPageNumber || 1,
-          generationModel
+          generationModel,
+          characterReferences
         )
         : await generateComicPages(
           scriptSegment,
-          startPageNumber || 1
+          startPageNumber || 1,
+          undefined,
+          characterReferences
         );
     } else {
       return NextResponse.json(

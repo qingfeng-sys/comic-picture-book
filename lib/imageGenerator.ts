@@ -259,7 +259,8 @@ export async function generateComicPageImage(
   pageText: string,
   pageNumber: number,
   retryCount: number = 0,
-  generationModel: GenerationModel = DEFAULT_MODEL
+  generationModel: GenerationModel = DEFAULT_MODEL,
+  characterReference?: string
 ): Promise<string> {
   const prompt = generateImagePrompt(pageText, pageNumber);
   const maxRetries = 2; // 最多重试2次
@@ -282,6 +283,8 @@ export async function generateComicPageImage(
           aspect_ratio: '1:1',
           human_fidelity: 0.8,
           model: modelToUse,
+          // 七牛支持 image_reference（用于角色一致性/图生图参考）
+          image_reference: characterReference,
         }
       );
     
@@ -315,7 +318,8 @@ export async function generateComicPageImage(
 export async function generateComicPagesFromStoryboard(
   storyboardData: StoryboardData,
   startPageNumber: number = 1,
-  generationModel: GenerationModel = DEFAULT_MODEL
+  generationModel: GenerationModel = DEFAULT_MODEL,
+  characterReferences?: Record<string, string>
 ): Promise<Array<{ pageNumber: number; imageUrl: string; text: string; dialogue?: DialogueItem[]; narration?: string }>> {
   const comicPages = [];
   
@@ -329,8 +333,10 @@ export async function generateComicPagesFromStoryboard(
     }
     
     try {
+      const primaryRole = frame.dialogues?.[0]?.role;
+      const refUrl = primaryRole && characterReferences ? (characterReferences[primaryRole] || characterReferences[primaryRole.trim()]) : undefined;
       // 使用frame的image_prompt生成图片
-      const imageUrl = await generateComicPageImage(frame.image_prompt, pageNumber, 0, generationModel);
+      const imageUrl = await generateComicPageImage(frame.image_prompt, pageNumber, 0, generationModel, refUrl);
       
       // 验证URL是否有效
       if (!imageUrl || imageUrl.includes('via.placeholder.com') || imageUrl.includes('placeholder')) {
@@ -379,7 +385,8 @@ export async function generateComicPagesFromStoryboard(
 export async function generateComicPages(
   scriptSegment: string,
   startPageNumber: number = 1,
-  generationModel: GenerationModel = DEFAULT_MODEL
+  generationModel: GenerationModel = DEFAULT_MODEL,
+  characterReferences?: Record<string, string>
 ): Promise<Array<{ pageNumber: number; imageUrl: string; text: string; dialogue?: string[]; narration?: string }>> {
   // 将脚本片段按页分割
   const pages = splitScriptIntoPages(scriptSegment);
@@ -392,8 +399,14 @@ export async function generateComicPages(
     // 提取对话和旁白
     const dialogue = extractDialogue(pageText);
     const narration = extractNarration(pageText);
-    
-    const imageUrl = await generateComicPageImage(pageText, pageNumber, 0, generationModel);
+
+    // 文本模式下：取第一条对话的角色名（“角色：...”）尝试匹配参考图
+    const firstDialogue = dialogue[0] || '';
+    const roleMatch = firstDialogue.match(/^([^：:]+)[：:]/);
+    const role = roleMatch?.[1]?.trim();
+    const refUrl = role && characterReferences ? (characterReferences[role] || characterReferences[role.trim()]) : undefined;
+
+    const imageUrl = await generateComicPageImage(pageText, pageNumber, 0, generationModel, refUrl);
     
     comicPages.push({
       pageNumber,

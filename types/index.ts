@@ -26,6 +26,8 @@ export const WAN_GENERATION_MODELS = [
   'wanx2.1-t2i-plus',
   'wanx2.1-t2i-turbo',
   'wanx2.0-t2i-turbo',
+  // 万相文生图 v1（DashScope 控制台 wanx-v1）
+  'wanx-v1',
 ] as const;
 
 export const QINIU_GENERATION_MODELS = [
@@ -88,5 +90,17 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+// 角色库（用于跨帧一致性：角色参考图/立绘）
+export interface CharacterProfile {
+  id: string;
+  name: string; // 角色名（用于和分镜 dialogues.role 匹配）
+  description?: string; // 性格/身份/关系等
+  visual?: string; // 外观要点（服装/发型/配色等）
+  matchNames?: string[]; // 可选：用于匹配 dialogues.role 的别名列表
+  referenceImageUrl?: string; // 角色立绘/参考图（建议为同源URL，如 /comic-assets/...）
+  createdAt: string;
+  updatedAt: string;
 }
 

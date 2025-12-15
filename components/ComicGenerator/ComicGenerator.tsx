@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel } from '@/types';
+import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel, CharacterProfile } from '@/types';
 import { createScriptWithSegments, loadScriptsFromStorage, importScriptFromText, extractStoryboardFromScript, saveComicBookToStorage } from '@/lib/scriptUtils';
 import ComicPageCanvas from '@/components/ComicPageCanvas/ComicPageCanvas';
+import { loadCharactersFromStorage } from '@/lib/characterUtils';
 
 const MODEL_OPTIONS: Array<{
   value: GenerationModel;
@@ -74,11 +75,23 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [generationModel, setGenerationModel] = useState<GenerationModel>(MODEL_OPTIONS[0].value);
+  const [characters, setCharacters] = useState<CharacterProfile[]>([]);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  const [useCharacterReferences, setUseCharacterReferences] = useState(true);
+  const [showCharacterAdvanced, setShowCharacterAdvanced] = useState(false);
 
   useEffect(() => {
     const scripts = loadScriptsFromStorage();
     setSavedScripts(scripts);
+    const chars = loadCharactersFromStorage();
+    setCharacters(chars);
+    // 默认全自动：自动选中所有已生成立绘的角色（用户无需手动勾选）
+    setSelectedCharacterIds(chars.filter(c => !!c.referenceImageUrl).map(c => c.id));
   }, []);
+
+  const characterReferences = useCharacterReferences
+    ? buildCharacterReferenceMap(characters.filter(c => selectedCharacterIds.includes(c.id)))
+    : undefined;
 
   const handleScriptSelect = (script: Script) => {
     const scriptWithSegments = createScriptWithSegments(script.title, script.content);
@@ -145,6 +158,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
           model: generationModel,
+          characterReferences: characterReferences,
         };
       } else {
         // 否则使用文本模式（兼容旧格式）
@@ -155,6 +169,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
           model: generationModel,
+          characterReferences: characterReferences,
         };
       }
 
@@ -290,6 +305,81 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
             </div>
           </div>
 
+          {/* 角色参考图（跨帧一致性） */}
+          <div className="bg-white/70 backdrop-blur rounded-xl p-4 border-2 border-purple-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-800">角色参考图（跨帧一致性）</h3>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={useCharacterReferences}
+                  onChange={(e) => setUseCharacterReferences(e.target.checked)}
+                />
+                启用
+              </label>
+            </div>
+
+            <p className="text-xs text-gray-600 mb-3">
+              勾选角色后，生成每页时会尝试把角色的 <span className="font-semibold">参考图</span> 作为 <span className="font-semibold">image_reference</span> 传给模型，以提升“几乎同一张脸”的一致性。
+              <br />
+              匹配规则：按对话里的 <code>role</code>（或“角色：对白”中的角色名）匹配角色名/匹配名。
+            </p>
+
+            {characters.length === 0 ? (
+              <div className="text-xs text-gray-500">
+                还没有角色参考图。请先到“角色库”生成角色立绘。
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-gray-600 mb-2">
+                  已自动启用 {selectedCharacterIds.length} 个角色参考图。
+                  <button
+                    type="button"
+                    className="ml-2 text-purple-600 hover:text-purple-700 underline"
+                    onClick={() => setShowCharacterAdvanced(v => !v)}
+                  >
+                    {showCharacterAdvanced ? '收起' : '高级设置'}
+                  </button>
+                </div>
+                {showCharacterAdvanced && (
+                  <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto">
+                    {characters.map((c) => (
+                      <label key={c.id} className="flex items-center gap-3 p-2 rounded-lg border border-gray-200 bg-white">
+                        <input
+                          type="checkbox"
+                          checked={selectedCharacterIds.includes(c.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSelectedCharacterIds((prev) =>
+                              checked ? Array.from(new Set([...prev, c.id])) : prev.filter((id) => id !== c.id)
+                            );
+                          }}
+                          disabled={!useCharacterReferences}
+                        />
+                        <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center border">
+                          {c.referenceImageUrl ? (
+                            <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg">👤</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-gray-800 truncate">{c.name}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            匹配名：{(c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name]).join('、')}
+                          </div>
+                        </div>
+                        {!c.referenceImageUrl && (
+                          <span className="text-xs text-orange-600">未生成立绘</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* 脚本片段选择 */}
           {selectedScript && (
             <div>
@@ -405,5 +495,18 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
       </div>
     </div>
   );
+}
+
+function buildCharacterReferenceMap(selected: CharacterProfile[]): Record<string, string> | undefined {
+  const map: Record<string, string> = {};
+  for (const c of selected) {
+    if (!c.referenceImageUrl) continue;
+    const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+    for (const k of keys) {
+      const key = String(k || '').trim();
+      if (key) map[key] = c.referenceImageUrl;
+    }
+  }
+  return Object.keys(map).length > 0 ? map : undefined;
 }
 

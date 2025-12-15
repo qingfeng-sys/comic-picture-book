@@ -6,6 +6,7 @@ import ComicGenerator from '@/components/ComicGenerator/ComicGenerator';
 import ComicViewer from '@/components/ComicViewer/ComicViewer';
 import PersonalCenter from '@/components/PersonalCenter/PersonalCenter';
 import MainLayout from '@/components/Layout/MainLayout';
+import CharacterLibrary from '@/components/CharacterLibrary/CharacterLibrary';
 import { saveScriptToStorage, loadScriptsFromStorage, loadComicBooksFromStorage, deleteComicBookFromStorage, saveComicBookToStorage } from '@/lib/scriptUtils';
 import { isLoggedIn, getCurrentUser, type User } from '@/lib/authUtils';
 import { Script, ComicBook } from '@/types';
@@ -516,45 +517,7 @@ export default function Home() {
   if (viewMode === 'characters') {
     return (
       <MainLayout currentPage="characters" onNavigate={handleNavigation} onUserChange={setCurrentUser}>
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-block mb-4">
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent mb-2 drop-shadow-lg">
-                👥 角色库
-              </h1>
-              <div className="h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 rounded-full"></div>
-            </div>
-            <p className="text-gray-600 text-lg font-medium">管理你的角色形象</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {/* 占位内容 */}
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div 
-                key={i} 
-                className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-purple-200 hover:border-purple-400 transition-all transform hover:scale-110 hover:shadow-2xl text-center relative overflow-hidden group"
-              >
-                <div 
-                  className="aspect-square rounded-full mb-4 flex items-center justify-center mx-auto w-32 relative"
-                  style={{
-                    background: i % 4 === 0 
-                      ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                      : i % 4 === 1
-                      ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
-                      : i % 4 === 2
-                      ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-                      : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                  }}
-                >
-                  <span className="text-6xl filter drop-shadow-lg animate-float relative z-10" style={{ animationDelay: `${i * 0.15}s` }}>👤</span>
-                  <div className="absolute inset-0 rounded-full border-4 border-white/50 opacity-0 group-hover:opacity-100 transition-opacity animate-pulse"></div>
-                </div>
-                <h3 className="font-bold text-gray-800 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">角色 {i}</h3>
-                {/* 装饰光效 */}
-                <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-200/30 to-pink-200/30 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <CharacterLibrary />
       </MainLayout>
     );
   }
