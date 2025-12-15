@@ -1,5 +1,5 @@
 import { StoryboardData } from '@/types';
-import { dashscopeChat, type DashScopeMessage, type DashScopeChatOptions } from '@/lib/dashscope';
+import { dashscopeChat, type DashScopeMessage, type DashScopeChatOptions } from '@/lib/providers/dashscope/text';
 
 type Provider = 'dashscope' | 'fallback';
 

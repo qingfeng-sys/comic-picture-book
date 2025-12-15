@@ -3,8 +3,8 @@
  * 支持通义万相（异步）与七牛云文生图
  */
 
-import { generateImageWithQiniu } from './qiniu';
-import { generateImageWithWan, isWanGenerationModel } from './wan';
+import { generateImageWithQiniu } from '@/lib/providers/qiniu/image';
+import { generateImageWithWan, isWanGenerationModel } from '@/lib/providers/dashscope/image';
 import { StoryboardData, DialogueItem, GenerationModel, QINIU_GENERATION_MODELS, WAN_GENERATION_MODELS } from '@/types';
 
 export interface ImageGenerationOptions {
