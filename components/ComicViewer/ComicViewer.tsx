@@ -64,14 +64,14 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
       // 重要：ComicViewer 只渲染当前页 Canvas，其他页没有 ref。
       // 因此“下载整本”改为逐页离屏渲染，确保每页都包含对话气泡/旁白。
       const canvases: Array<{ canvas: HTMLCanvasElement; filename: string }> = [];
-
+      
       for (let i = 0; i < currentComicBook.pages.length; i++) {
         const page = currentComicBook.pages[i];
         const canvas = await renderComicPageToCanvas(page); // 导出默认用原图尺寸，清晰度更好
-        canvases.push({
-          canvas,
-          filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
-        });
+            canvases.push({
+              canvas,
+              filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
+            });
       }
 
       const comicTitle = currentComicBook.title || currentComicBook.id.substring(0, 8);

@@ -1,8 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel, CharacterProfile } from '@/types';
-import { createScriptWithSegments, loadScriptsFromStorage, importScriptFromText, extractStoryboardFromScript, saveComicBookToStorage } from '@/lib/scriptUtils';
+import {
+  createScriptWithSegments,
+  loadScriptsFromStorage,
+  importScriptFromText,
+  extractStoryboardFromScript,
+  saveComicBookToStorage,
+  splitScriptIntoSegments,
+} from '@/lib/scriptUtils';
 import ComicPageCanvas from '@/components/ComicPageCanvas/ComicPageCanvas';
 import { loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
 
@@ -12,6 +19,12 @@ const MODEL_OPTIONS: Array<{
   description: string;
   isAsync: boolean;
 }> = [
+  {
+    value: 'wan2.6-image',
+    label: '万相 wan2.6-image',
+    description: '通用文生图模型（不走参考图），适合高质量场景插图',
+    isAsync: true,
+  },
   {
     value: 'wanx-v1',
     label: '万相 wanx-v1（支持参考图）',
@@ -54,17 +67,46 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   const [generatedPages, setGeneratedPages] = useState<ComicPage[]>([]);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
-  const [generationModel, setGenerationModel] = useState<GenerationModel>('wanx-v1');
+  const [generationModel, setGenerationModel] = useState<GenerationModel>('wan2.5-i2i-preview');
   const [characters, setCharacters] = useState<CharacterProfile[]>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [useCharacterReferences, setUseCharacterReferences] = useState(true);
   const [showCharacterAdvanced, setShowCharacterAdvanced] = useState(false);
+  const [showAddFromLibrary, setShowAddFromLibrary] = useState(false);
+  const [addFromLibraryQuery, setAddFromLibraryQuery] = useState('');
+  const [extraVisibleCharacterIds, setExtraVisibleCharacterIds] = useState<string[]>([]);
+  const [userTouchedCharacterSelection, setUserTouchedCharacterSelection] = useState(false);
   const [portraitModel, setPortraitModel] = useState<GenerationModel>('wan2.2-t2i-plus');
   const [isGeneratingPortraits, setIsGeneratingPortraits] = useState(false);
+  const [combinedReferenceImage, setCombinedReferenceImage] = useState<string | undefined>(undefined);
+
+  const scriptRoleNames = useMemo(() => {
+    if (!selectedScript) return null;
+    return extractRoleNamesFromScript(selectedScript.content);
+  }, [selectedScript]);
+
+  // 选中脚本后：只显示该脚本涉及的角色（按 name/matchNames 匹配分镜 role）
+  const visibleCharacters = useMemo(() => {
+    // 未选脚本：展示全量角色库
+    if (!scriptRoleNames || scriptRoleNames.size === 0) return characters;
+
+    const extraSet = new Set(extraVisibleCharacterIds);
+    return characters.filter((c) => {
+      if (extraSet.has(c.id)) return true;
+      const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+      return keys.some((k) => scriptRoleNames.has(String(k || '').trim()));
+    });
+  }, [characters, scriptRoleNames, extraVisibleCharacterIds]);
 
   useEffect(() => {
     const scripts = loadScriptsFromStorage();
-    setSavedScripts(scripts);
+    // 最新脚本排在最前：优先按 updatedAt，其次 createdAt（降序）
+    const sorted = [...scripts].sort((a, b) => {
+      const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return tb - ta;
+    });
+    setSavedScripts(sorted);
     const chars = loadCharactersFromStorage();
     setCharacters(chars);
     // 默认全自动：自动选中所有已生成立绘的角色（用户无需手动勾选）
@@ -74,12 +116,43 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   const refreshCharacters = () => {
     const chars = loadCharactersFromStorage();
     setCharacters(chars);
-    setSelectedCharacterIds(chars.filter(c => !!c.referenceImageUrl).map(c => c.id));
+    // selectedCharacterIds 由“选中脚本后的自动筛选”逻辑接管（避免混入历史脚本的角色）
   };
 
+  // 选中脚本后，自动勾选该脚本涉及且已生成立绘的角色
+  useEffect(() => {
+    if (!selectedScript) return;
+    const ids = visibleCharacters.filter((c) => !!c.referenceImageUrl).map((c) => c.id);
+    if (!userTouchedCharacterSelection) {
+      setSelectedCharacterIds(ids);
+    }
+  }, [selectedScript?.id, visibleCharacters, userTouchedCharacterSelection]);
+
   const characterReferences = useCharacterReferences
-    ? buildCharacterReferenceMap(characters.filter(c => selectedCharacterIds.includes(c.id)))
+    ? buildCharacterReferenceMap(visibleCharacters.filter(c => selectedCharacterIds.includes(c.id)))
     : undefined;
+
+  // 生成“多角色参考拼图”：仅用于 i2i 模型（wan2.5-i2i-preview）
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!useCharacterReferences) {
+        setCombinedReferenceImage(undefined);
+        return;
+      }
+      if (generationModel !== 'wan2.5-i2i-preview') {
+        setCombinedReferenceImage(undefined);
+        return;
+      }
+      const selected = visibleCharacters.filter(c => selectedCharacterIds.includes(c.id) && !!c.referenceImageUrl);
+      const img = await buildCombinedReferenceImage(selected);
+      if (!cancelled) setCombinedReferenceImage(img);
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [useCharacterReferences, generationModel, visibleCharacters, selectedCharacterIds]);
 
   const handleGeneratePortraits = async () => {
     if (!selectedScript) {
@@ -103,7 +176,16 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
         return;
       }
       const chars: CharacterProfile[] = json.data.characters;
-      chars.forEach((c) => upsertCharacter(c));
+      // 将本次“目标脚本”的信息写入角色库，便于角色库按脚本分组展示
+      chars.forEach((c) =>
+        upsertCharacter({
+          ...c,
+          sourceType: 'script',
+          sourceScriptId: selectedScript.id,
+          sourceScriptTitle: selectedScript.title,
+          updatedAt: new Date().toISOString(),
+        })
+      );
       refreshCharacters();
       alert(`角色立绘生成完成：${chars.filter((c) => !!c.referenceImageUrl).length}/${chars.length}`);
     } catch (e) {
@@ -115,10 +197,33 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   };
 
   const handleScriptSelect = (script: Script) => {
-    const scriptWithSegments = createScriptWithSegments(script.title, script.content);
+    // 选择已保存脚本时：保留原始 id/时间戳，避免“选中态”无法高亮/混淆
+    setExtraVisibleCharacterIds([]);
+    setUserTouchedCharacterSelection(false);
+    setShowAddFromLibrary(false);
+    setAddFromLibraryQuery('');
+    const segments = splitScriptIntoSegments(script.content);
+    const scriptWithSegments: ScriptWithSegments = {
+      ...script,
+      segments,
+      totalSegments: segments.length,
+    };
     setSelectedScript(scriptWithSegments);
     setSelectedSegmentId(null);
     setGeneratedPages([]);
+  };
+
+  const handleResetScriptSelect = () => {
+    setSelectedScript(null);
+    setSelectedSegmentId(null);
+    setGeneratedPages([]);
+    setShowImport(false);
+    setImportText('');
+    setShowCharacterAdvanced(false);
+    setShowAddFromLibrary(false);
+    setAddFromLibraryQuery('');
+    setExtraVisibleCharacterIds([]);
+    setUserTouchedCharacterSelection(false);
   };
 
   const handleImportScript = () => {
@@ -127,6 +232,10 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
       return;
     }
 
+    setExtraVisibleCharacterIds([]);
+    setUserTouchedCharacterSelection(false);
+    setShowAddFromLibrary(false);
+    setAddFromLibraryQuery('');
     const importedScript = importScriptFromText(importText);
     const scriptWithSegments = createScriptWithSegments(importedScript.title, importedScript.content);
     setSelectedScript(scriptWithSegments);
@@ -161,6 +270,32 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
     setGeneratedPages([]);
 
     try {
+      // i2i 场景：把角色库中的本地 PNG 立绘提前压缩为 JPEG dataURL，
+      // 避免后端把大 PNG 转 base64 导致 DashScope DataInspection 长度超限。
+      const selectedProfiles = visibleCharacters.filter((c) => selectedCharacterIds.includes(c.id));
+      const characterReferencesToSend =
+        useCharacterReferences && generationModel === 'wan2.5-i2i-preview'
+          ? await buildCharacterReferenceMapForI2I(selectedProfiles)
+          : characterReferences;
+
+      // i2i 模型必须带底图：直接使用多张立绘（input.images 支持数组），避免拼图带来的尺寸/审查限制
+      const selectedForRef = visibleCharacters
+        .filter((c) => selectedCharacterIds.includes(c.id) && !!c.referenceImageUrl)
+        .map((c) => c.referenceImageUrl!)
+        .slice(0, 5);
+
+      // DashScope i2i 对媒体格式/审查更敏感：将本地 PNG 统一转为 JPEG dataURL（更通用且体积更小）
+      const referenceImagesToSend =
+        useCharacterReferences && generationModel === 'wan2.5-i2i-preview'
+          ? (await Promise.all(selectedForRef.map((src) => toJpegDataUrlSafe(src)))).filter(Boolean)
+          : undefined;
+
+      if (generationModel === 'wan2.5-i2i-preview' && (!referenceImagesToSend || referenceImagesToSend.length === 0)) {
+        alert('当前选择的是 wan2.5-i2i-preview（图生图），必须提供至少 1 张立绘作为底图。请先生成立绘或切换模型。');
+        setIsGenerating(false);
+        return;
+      }
+
       // 尝试从脚本中提取分镜数据
       const storyboardData = extractStoryboardFromScript(selectedScript.content);
       
@@ -188,7 +323,8 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
           model: generationModel,
-          characterReferences: characterReferences,
+          characterReferences: characterReferencesToSend,
+          referenceImages: referenceImagesToSend,
         };
       } else {
         // 否则使用文本模式（兼容旧格式）
@@ -199,7 +335,8 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
           model: generationModel,
-          characterReferences: characterReferences,
+          characterReferences: characterReferencesToSend,
+          referenceImages: referenceImagesToSend,
         };
       }
 
@@ -253,8 +390,21 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
         <div className="space-y-4">
           <div>
             <h3 className="text-lg font-semibold mb-3 text-gray-800">选择脚本</h3>
-            
-            {!showImport ? (
+
+            {/* 选中脚本后“锁定”脚本列表：只保留目标脚本，避免难以辨认 */}
+            {selectedScript ? (
+              <div className="space-y-3">
+                <div className="w-full text-left p-3 rounded-lg border-2 border-primary-500 bg-primary-50">
+                  <div className="font-medium">{selectedScript.title}</div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    更新时间：{new Date(selectedScript.updatedAt || selectedScript.createdAt).toLocaleString()}
+                  </div>
+                </div>
+                <button onClick={handleResetScriptSelect} className="btn-secondary w-full">
+                  返回上一步：重新选择脚本
+                </button>
+              </div>
+            ) : !showImport ? (
               <div className="space-y-3">
                 {savedScripts.length > 0 ? (
                   <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -262,15 +412,11 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
                       <button
                         key={script.id}
                         onClick={() => handleScriptSelect(script)}
-                        className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${
-                          selectedScript?.id === script.id
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-primary-300'
-                        }`}
+                        className="w-full text-left p-3 rounded-lg border-2 transition-colors border-gray-200 hover:border-primary-300"
                       >
                         <div className="font-medium">{script.title}</div>
                         <div className="text-sm text-gray-500 mt-1">
-                          {new Date(script.createdAt).toLocaleDateString()}
+                          更新时间：{new Date(script.updatedAt || script.createdAt).toLocaleString()}
                         </div>
                       </button>
                     ))}
@@ -278,11 +424,8 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
                 ) : (
                   <p className="text-gray-500 text-sm">暂无保存的脚本</p>
                 )}
-                
-                <button
-                  onClick={() => setShowImport(true)}
-                  className="btn-secondary w-full"
-                >
+
+                <button onClick={() => setShowImport(true)} className="btn-secondary w-full">
                   导入外部脚本
                 </button>
               </div>
@@ -384,9 +527,9 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
               </p>
             </div>
 
-            {characters.length === 0 ? (
+            {visibleCharacters.length === 0 ? (
               <div className="text-xs text-gray-500">
-                还没有角色参考图。你可以先在上方点击“生成角色立绘”，也可以到“角色库”手动生成。
+                当前脚本还没有匹配到角色参考图。你可以先在上方点击“生成角色立绘”，也可以到“角色库”手动生成/补充匹配名。
               </div>
             ) : (
               <>
@@ -401,14 +544,86 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
                   </button>
                 </div>
                 {showCharacterAdvanced && (
-                  <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto">
-                    {characters.map((c) => (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-600">
+                        仅显示与当前脚本匹配的角色。若需补充，可从角色库手动添加（建议同步在角色库中完善匹配名）。
+                      </div>
+                      <button
+                        type="button"
+                        className="text-xs text-purple-600 hover:text-purple-700 underline"
+                        onClick={() => setShowAddFromLibrary((v) => !v)}
+                        disabled={!selectedScript}
+                      >
+                        {showAddFromLibrary ? '收起添加' : '从角色库中添加'}
+                      </button>
+                    </div>
+
+                    {showAddFromLibrary && (
+                      <div className="rounded-lg border border-purple-200 bg-white p-2 space-y-2">
+                        <input
+                          value={addFromLibraryQuery}
+                          onChange={(e) => setAddFromLibraryQuery(e.target.value)}
+                          placeholder="搜索角色名..."
+                          className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm"
+                        />
+                        <div className="max-h-40 overflow-y-auto space-y-1">
+                          {characters
+                            .filter((c) => !visibleCharacters.some((v) => v.id === c.id))
+                            .filter((c) => {
+                              const q = addFromLibraryQuery.trim();
+                              if (!q) return true;
+                              const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+                              return keys.some((k) => String(k || '').includes(q)) || String(c.name || '').includes(q);
+                            })
+                            .slice(0, 50)
+                            .map((c) => (
+                              <div
+                                key={c.id}
+                                className="flex items-center gap-2 p-2 rounded border border-gray-200 bg-white"
+                              >
+                                <div className="w-9 h-9 rounded overflow-hidden bg-gray-100 flex items-center justify-center border">
+                                  {c.referenceImageUrl ? (
+                                    <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-base">👤</span>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-semibold text-gray-800 truncate">{c.name}</div>
+                                  <div className="text-xs text-gray-500 truncate">
+                                    匹配名：{(c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name]).join('、')}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="text-xs px-2 py-1 rounded border border-purple-300 text-purple-700 hover:bg-purple-50"
+                                  onClick={() => {
+                                    setUserTouchedCharacterSelection(true);
+                                    setExtraVisibleCharacterIds((prev) => Array.from(new Set([...prev, c.id])));
+                                    setSelectedCharacterIds((prev) => Array.from(new Set([...prev, c.id])));
+                                  }}
+                                >
+                                  添加
+                                </button>
+                              </div>
+                            ))}
+                          {characters.filter((c) => !visibleCharacters.some((v) => v.id === c.id)).length === 0 && (
+                            <div className="text-xs text-gray-500 py-2">没有可添加的角色（已全部在当前列表中）。</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto">
+                    {visibleCharacters.map((c) => (
                       <label key={c.id} className="flex items-center gap-3 p-2 rounded-lg border border-gray-200 bg-white">
                         <input
                           type="checkbox"
                           checked={selectedCharacterIds.includes(c.id)}
                           onChange={(e) => {
                             const checked = e.target.checked;
+                            setUserTouchedCharacterSelection(true);
                             setSelectedCharacterIds((prev) =>
                               checked ? Array.from(new Set([...prev, c.id])) : prev.filter((id) => id !== c.id)
                             );
@@ -433,6 +648,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
                         )}
                       </label>
                     ))}
+                  </div>
                   </div>
                 )}
               </>
@@ -556,6 +772,53 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   );
 }
 
+async function toJpegDataUrlSafe(src: string): Promise<string | undefined> {
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.crossOrigin = 'anonymous';
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+      el.src = src;
+    });
+
+    // 控制尺寸，避免 dataURL 过大：最长边 512（进一步降低 DataInspection 风险）
+    const maxSide = 512;
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return undefined;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } catch (e) {
+    console.warn(e);
+    return undefined;
+  }
+}
+
+async function buildCharacterReferenceMapForI2I(selected: CharacterProfile[]): Promise<Record<string, string> | undefined> {
+  const map: Record<string, string> = {};
+  for (const c of selected) {
+    if (!c.referenceImageUrl) continue;
+    const jpeg = await toJpegDataUrlSafe(c.referenceImageUrl);
+    if (!jpeg) continue;
+    const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+    for (const k of keys) {
+      const key = String(k || '').trim();
+      if (key) map[key] = jpeg;
+    }
+  }
+  return Object.keys(map).length > 0 ? map : undefined;
+}
+
 function buildCharacterReferenceMap(selected: CharacterProfile[]): Record<string, string> | undefined {
   const map: Record<string, string> = {};
   for (const c of selected) {
@@ -567,5 +830,88 @@ function buildCharacterReferenceMap(selected: CharacterProfile[]): Record<string
     }
   }
   return Object.keys(map).length > 0 ? map : undefined;
+}
+
+function extractRoleNamesFromScript(content: string): Set<string> {
+  const set = new Set<string>();
+  try {
+    const sb = extractStoryboardFromScript(content);
+    if (sb && Array.isArray(sb.frames)) {
+      for (const f of sb.frames) {
+        for (const d of f.dialogues || []) {
+          const role = String(d.role || '').trim();
+          if (role) set.add(role);
+        }
+      }
+      if (set.size > 0) return set;
+    }
+  } catch {
+    // ignore
+  }
+
+  // 文本脚本兜底：抓取形如 “角色：对白” 或 “角色："对白"” 的角色名
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^\s*([^：:\s]{1,20})\s*[：:]/);
+    if (m?.[1]) set.add(m[1].trim());
+  }
+  return set;
+}
+
+async function buildCombinedReferenceImage(selected: CharacterProfile[]): Promise<string | undefined> {
+  const withRef = selected.filter((c) => !!c.referenceImageUrl);
+  if (withRef.length === 0) return undefined;
+  if (withRef.length === 1) return withRef[0].referenceImageUrl;
+
+  // 限制最多拼 4 张 + 降低分辨率/改用 JPEG，避免 DashScope “DataInspection length” 限制
+  const items = withRef.slice(0, 4);
+  const tile = 192;
+  const cols = 2;
+  const rows = Math.ceil(items.length / cols);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * tile;
+  canvas.height = rows * tile;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return undefined;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const load = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      // 同源 /comic-assets 不需要 CORS，但设置也不影响
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+      img.src = src;
+    });
+
+  for (let i = 0; i < items.length; i++) {
+    const src = items[i].referenceImageUrl!;
+    try {
+      const img = await load(src);
+      const x = (i % cols) * tile;
+      const y = Math.floor(i / cols) * tile;
+      // contain 绘制：保持比例居中
+      const scale = Math.min(tile / img.width, tile / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      const dx = x + (tile - w) / 2;
+      const dy = y + (tile - h) / 2;
+      ctx.drawImage(img, dx, dy, w, h);
+    } catch (e) {
+      // 单张失败不影响整体
+      console.warn(e);
+    }
+  }
+
+  try {
+    // JPEG 会显著减小 dataURL 长度
+    return canvas.toDataURL('image/jpeg', 0.72);
+  } catch {
+    return undefined;
+  }
 }
 

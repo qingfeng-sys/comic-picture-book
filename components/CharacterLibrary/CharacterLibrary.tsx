@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { CharacterProfile, GenerationModel } from '@/types';
+import type { CharacterProfile, GenerationModel, Script } from '@/types';
 import { deleteCharacter, loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
+import { loadScriptsFromStorage, extractStoryboardFromScript } from '@/lib/scriptUtils';
 
 const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
   { value: 'wan2.5-t2i-preview', label: '通义万相 V2.5 Preview（文生图）' },
@@ -15,6 +16,13 @@ const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
 
 export default function CharacterLibrary() {
   const [characters, setCharacters] = useState<CharacterProfile[]>([]);
+  const [scripts, setScripts] = useState<Script[]>([]);
+
+  const [view, setView] = useState<'groups' | 'groupDetail' | 'create'>('groups');
+  const [activeGroup, setActiveGroup] = useState<
+    | { type: 'script'; scriptId: string; title: string }
+    | { type: 'custom'; title: string }
+  >({ type: 'custom', title: '自定义角色' });
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -26,11 +34,79 @@ export default function CharacterLibrary() {
 
   useEffect(() => {
     setCharacters(loadCharactersFromStorage());
+    setScripts(loadScriptsFromStorage());
   }, []);
 
-  const sorted = useMemo(() => {
+  const sortedAll = useMemo(() => {
     return [...characters].sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
   }, [characters]);
+
+  const customCharacters = useMemo(() => {
+    return sortedAll.filter((c) => c.sourceType === 'custom');
+  }, [sortedAll]);
+
+  const scriptGroups = useMemo(() => {
+    const scriptsSorted = [...scripts].sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
+
+    const roleSetByScriptId = new Map<string, Set<string>>();
+    for (const s of scriptsSorted) {
+      roleSetByScriptId.set(s.id, extractRoleNamesFromScriptContent(s.content));
+    }
+
+    // 已显式标注脚本来源的角色：优先使用 sourceScriptId
+    const groups = new Map<string, { scriptId: string; title: string; characters: CharacterProfile[] }>();
+    for (const s of scriptsSorted) {
+      groups.set(s.id, { scriptId: s.id, title: s.title, characters: [] });
+    }
+
+    // 先放入明确标注来源的角色
+    const unassigned: CharacterProfile[] = [];
+    for (const c of sortedAll) {
+      if (c.sourceType === 'custom') continue;
+      if (c.sourceType === 'script' && c.sourceScriptId && groups.has(c.sourceScriptId)) {
+        groups.get(c.sourceScriptId)!.characters.push(c);
+      } else {
+        unassigned.push(c);
+      }
+    }
+
+    // 对历史数据/未标注来源的角色：按“脚本角色名集合”做一次归类（避免丢失）
+    for (const c of unassigned) {
+      const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+      let assigned = false;
+      for (const s of scriptsSorted) {
+        const roleSet = roleSetByScriptId.get(s.id);
+        if (!roleSet || roleSet.size === 0) continue;
+        if (keys.some((k) => roleSet.has(String(k || '').trim()))) {
+          groups.get(s.id)!.characters.push(c);
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        // 没法归类的历史角色，后面单独显示在“自定义角色（未归类）”里
+      }
+    }
+
+    // 只返回有角色的脚本组
+    return Array.from(groups.values())
+      .filter((g) => g.characters.length > 0)
+      .map((g) => ({
+        ...g,
+        characters: [...g.characters].sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt)),
+      }));
+  }, [scripts, sortedAll]);
+
+  const uncategorized = useMemo(() => {
+    const scriptRoleSets = scripts.map((s) => extractRoleNamesFromScriptContent(s.content));
+    return sortedAll.filter((c) => {
+      if (c.sourceType === 'custom') return false;
+      if (c.sourceType === 'script' && c.sourceScriptId) return false;
+      const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+      const hitAny = scriptRoleSets.some((set) => set.size > 0 && keys.some((k) => set.has(String(k || '').trim())));
+      return !hitAny;
+    });
+  }, [sortedAll, scripts]);
 
   async function handleCreateAndGenerate() {
     if (!name.trim()) {
@@ -63,11 +139,13 @@ export default function CharacterLibrary() {
         visual: visual.trim() || undefined,
         matchNames: parseMatchNames(matchNames, name.trim()),
         referenceImageUrl: json.data.imageUrl,
+        sourceType: 'custom',
         createdAt: now,
         updatedAt: now,
       };
       upsertCharacter(profile);
       setCharacters(loadCharactersFromStorage());
+      setView('groups');
 
       // reset
       setName('');
@@ -112,106 +190,181 @@ export default function CharacterLibrary() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-purple-200">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">新增角色（生成立绘）</h2>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">角色名</label>
-              <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：青风" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">身份/关系/年龄（建议写清）</label>
-              <textarea className="textarea-field" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="例如：舅舅，成年男性，温柔耐心" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">外观要点（跨帧固定）</label>
-              <textarea className="textarea-field" rows={3} value={visual} onChange={(e) => setVisual(e.target.value)} placeholder="例如：短黑发，蓝色外套+白T，戴手表，圆脸大眼" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">匹配名（用于对话 role 匹配，可选）</label>
-              <input className="input-field" value={matchNames} onChange={(e) => setMatchNames(e.target.value)} placeholder="逗号分隔，例如：舅舅青风,青风叔叔" />
-              <p className="text-xs text-gray-500 mt-1">默认会包含角色名本身；建议把“分镜/对话里可能出现的称呼”都加上。</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">立绘生成模型</label>
-              <select className="w-full p-3 border-2 border-gray-200 rounded-lg" value={model} onChange={(e) => setModel(e.target.value as GenerationModel)}>
-                {PORTRAIT_MODELS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isGenerating}
-              onClick={handleCreateAndGenerate}
-            >
-              {isGenerating ? '生成中...' : '生成角色立绘'}
-            </button>
-          </div>
-        </div>
-
-        <div className="lg:col-span-2">
+      {/* 上部：我的角色（按脚本分组） */}
+      {view === 'groups' && (
+        <div className="space-y-6">
           <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-cyan-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-800">我的角色</h2>
               <span className="px-3 py-1 rounded-full bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 font-bold text-sm">
-                {sorted.length}
+                {sortedAll.length}
               </span>
             </div>
 
-            {sorted.length === 0 ? (
-              <div className="text-center py-10 text-gray-600">
-                还没有角色。先在左侧生成一个角色立绘吧。
-              </div>
+            {(scriptGroups.length === 0 && customCharacters.length === 0 && uncategorized.length === 0) ? (
+              <div className="text-center py-10 text-gray-600">还没有角色。你可以在下方新增自定义角色，或在“绘本生成”里一键生成角色立绘。</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sorted.map((c) => (
-                  <div key={c.id} className="border-2 border-cyan-200 rounded-xl p-4 bg-white">
-                    <div className="flex gap-4">
-                      <div className="w-24 h-24 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center border">
-                        {c.referenceImageUrl ? (
-                          <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-3xl">👤</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-bold text-gray-800 truncate">{c.name}</div>
-                            {c.description && <div className="text-xs text-gray-600 mt-1 line-clamp-2">{c.description}</div>}
-                            {c.visual && <div className="text-xs text-gray-500 mt-1 line-clamp-2">外观：{c.visual}</div>}
-                          </div>
-                          <button className="text-red-500 hover:text-red-600 text-sm" onClick={() => handleDelete(c.id)}>删除</button>
-                        </div>
-
-                        <div className="mt-3">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">匹配名（逗号分隔）</label>
-                          <input
-                            className="input-field"
-                            defaultValue={(c.matchNames || [c.name]).join(',')}
-                            onBlur={(e) => handleUpdateMatchNames(c, e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-400 mt-2">
-                      更新：{new Date(c.updatedAt || c.createdAt).toLocaleString()}
-                    </div>
-                  </div>
+                {scriptGroups.map((g) => (
+                  <button
+                    key={g.scriptId}
+                    className="text-left border-2 border-cyan-200 rounded-xl p-4 bg-white hover:border-cyan-300 transition-colors"
+                    onClick={() => {
+                      setActiveGroup({ type: 'script', scriptId: g.scriptId, title: g.title });
+                      setView('groupDetail');
+                    }}
+                  >
+                    <div className="font-bold text-gray-800 truncate">{g.title}</div>
+                    <div className="text-xs text-gray-500 mt-1">包含角色：{g.characters.length}</div>
+                  </button>
                 ))}
+
+                <button
+                  className="text-left border-2 border-purple-200 rounded-xl p-4 bg-white hover:border-purple-300 transition-colors"
+                  onClick={() => {
+                    setActiveGroup({ type: 'custom', title: '自定义角色' });
+                    setView('groupDetail');
+                  }}
+                >
+                  <div className="font-bold text-gray-800">自定义角色</div>
+                  <div className="text-xs text-gray-500 mt-1">包含角色：{customCharacters.length + uncategorized.length}</div>
+                </button>
               </div>
             )}
           </div>
+
+          {/* 下部：新增自定义角色入口 */}
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-lg font-bold text-gray-800">新增角色</div>
+                <div className="text-xs text-gray-500 mt-1">将角色添加到“自定义角色”中</div>
+              </div>
+              <button className="btn-primary" onClick={() => setView('create')}>
+                新增自定义角色
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* 组详情：点击脚本/自定义角色后显示具体角色 */}
+      {view === 'groupDetail' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">{activeGroup.title}</h2>
+              <div className="text-xs text-gray-500 mt-1">点“返回”可回到脚本分组列表</div>
+            </div>
+            <button className="btn-secondary" onClick={() => setView('groups')}>返回</button>
+          </div>
+
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-cyan-200">
+            {(() => {
+              const list =
+                activeGroup.type === 'script'
+                  ? (scriptGroups.find((g) => g.scriptId === activeGroup.scriptId)?.characters || [])
+                  : [...customCharacters, ...uncategorized];
+
+              if (list.length === 0) {
+                return <div className="text-center py-10 text-gray-600">该分组下暂无角色。</div>;
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {list.map((c) => (
+                    <div key={c.id} className="border-2 border-cyan-200 rounded-xl p-4 bg-white">
+                      <div className="flex gap-4">
+                        <div className="w-24 h-24 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center border">
+                          {c.referenceImageUrl ? (
+                            <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-3xl">👤</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-bold text-gray-800 truncate">{c.name}</div>
+                              {c.description && <div className="text-xs text-gray-600 mt-1 line-clamp-2">{c.description}</div>}
+                              {c.visual && <div className="text-xs text-gray-500 mt-1 line-clamp-2">外观：{c.visual}</div>}
+                            </div>
+                            <button className="text-red-500 hover:text-red-600 text-sm" onClick={() => handleDelete(c.id)}>删除</button>
+                          </div>
+
+                          <div className="mt-3">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">匹配名（逗号分隔）</label>
+                            <input
+                              className="input-field"
+                              defaultValue={(c.matchNames || [c.name]).join(',')}
+                              onBlur={(e) => handleUpdateMatchNames(c, e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-2">
+                        更新：{new Date(c.updatedAt || c.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* 新增自定义角色：独立页面 */}
+      {view === 'create' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-800">新增自定义角色（生成立绘）</h2>
+            <button className="btn-secondary" onClick={() => setView('groups')}>返回</button>
+          </div>
+
+          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-purple-200">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">角色名</label>
+                <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：青风" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">身份/关系/年龄（建议写清）</label>
+                <textarea className="textarea-field" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="例如：舅舅，成年男性，温柔耐心" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">外观要点（跨帧固定）</label>
+                <textarea className="textarea-field" rows={3} value={visual} onChange={(e) => setVisual(e.target.value)} placeholder="例如：短黑发，蓝色外套+白T，戴手表，圆脸大眼" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">匹配名（用于对话 role 匹配，可选）</label>
+                <input className="input-field" value={matchNames} onChange={(e) => setMatchNames(e.target.value)} placeholder="逗号分隔，例如：舅舅青风,青风叔叔" />
+                <p className="text-xs text-gray-500 mt-1">默认会包含角色名本身；建议把“分镜/对话里可能出现的称呼”都加上。</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">立绘生成模型</label>
+                <select className="w-full p-3 border-2 border-gray-200 rounded-lg" value={model} onChange={(e) => setModel(e.target.value as GenerationModel)}>
+                  {PORTRAIT_MODELS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isGenerating}
+                onClick={handleCreateAndGenerate}
+              >
+                {isGenerating ? '生成中...' : '生成角色立绘'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -223,6 +376,32 @@ function parseMatchNames(raw: string, name: string): string[] {
     .filter(Boolean);
   const set = new Set<string>([name, ...parts]);
   return Array.from(set);
+}
+
+function extractRoleNamesFromScriptContent(content: string): Set<string> {
+  const set = new Set<string>();
+  try {
+    const sb = extractStoryboardFromScript(content);
+    if (sb && Array.isArray((sb as any).frames)) {
+      for (const f of (sb as any).frames) {
+        for (const d of f.dialogues || []) {
+          const role = String(d.role || '').trim();
+          if (role) set.add(role);
+        }
+      }
+      if (set.size > 0) return set;
+    }
+  } catch {
+    // ignore
+  }
+
+  // 兜底：匹配 “角色：” 行
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^\s*([^：:\s]{1,20})\s*[：:]/);
+    if (m?.[1]) set.add(m[1].trim());
+  }
+  return set;
 }
 
 

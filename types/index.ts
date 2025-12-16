@@ -20,6 +20,8 @@ export interface ScriptWithSegments extends Script {
 
 // 文生图模型
 export const WAN_GENERATION_MODELS = [
+  // 万相 2.6 通用图像模型（DashScope 控制台 wan2.6-image）
+  'wan2.6-image',
   'wan2.5-t2i-preview',
   'wan2.2-t2i-plus',
   'wan2.2-t2i-flash',
@@ -102,6 +104,14 @@ export interface CharacterProfile {
   visual?: string; // 外观要点（服装/发型/配色等）
   matchNames?: string[]; // 可选：用于匹配 dialogues.role 的别名列表
   referenceImageUrl?: string; // 角色立绘/参考图（建议为同源URL，如 /comic-assets/...）
+  /**
+   * 角色来源：用于在“角色库”按脚本分组展示
+   * - script：由某个脚本自动/批量生成
+   * - custom：用户在角色库手动新增
+   */
+  sourceType?: 'script' | 'custom';
+  sourceScriptId?: string;
+  sourceScriptTitle?: string;
   createdAt: string;
   updatedAt: string;
 }

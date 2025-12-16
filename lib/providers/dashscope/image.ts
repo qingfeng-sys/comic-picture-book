@@ -4,7 +4,6 @@ import { GenerationModel, WAN_GENERATION_MODELS } from '@/types';
 const WAN_API_BASE = 'https://dashscope.aliyuncs.com/api/v1';
 const WAN_SERVICE_PATH = '/services/aigc/text2image/image-synthesis';
 const WAN_I2I_SERVICE_PATH = '/services/aigc/image2image/image-synthesis';
-
 const REQUEST_TIMEOUT_MS = 12_000;
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_ATTEMPTS = 40; // 约2分钟
@@ -41,7 +40,7 @@ interface WanSubmitOptions {
    * 参考图（仅 wanx-v1 支持）
    * 说明：DashScope 万相的参考图字段以控制台文档为准；这里按 image_reference 透传。
    */
-  image_reference?: string;
+  image_reference?: string | string[];
 }
 
 interface WanSubmitResult {
@@ -65,11 +64,24 @@ function normalizePrompt(prompt: string): string {
     .slice(0, 900); // 预留空间给附加参数，避免过长
 }
 
+function normalizeI2IImageInput(image: string): string {
+  // DashScope i2i 的 input.images 通常支持：公网 URL 或 base64(dataURL)。
+  // 实测 DataInspection 对“媒体格式识别”更依赖 dataURL（包含 MIME），
+  // 使用 base64:// 可能会被判定为无法识别格式。
+  if (!image) return image;
+  if (image.startsWith('http://') || image.startsWith('https://')) return image;
+  if (image.startsWith('data:')) {
+    // 保留完整 dataURL（例如 data:image/jpeg;base64,...），便于服务端审查识别媒体格式
+    return image;
+  }
+  // 其他情况原样返回，让 API 报错并在日志中体现
+  return image;
+}
+
 export async function submitWanImageTask(prompt: string, options: WanSubmitOptions): Promise<WanSubmitResult> {
   const apiKey = resolveWanApiKey();
   const cleanPrompt = normalizePrompt(prompt);
 
-  // 构建请求Payload
   const payload: any = {
     model: options.model,
     input: {
@@ -81,30 +93,39 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
     },
   };
 
-  // 根据模型选择不同的服务路径和参数结构
+  // 根据模型选择服务路径 & 参考图字段
   let servicePath = WAN_SERVICE_PATH;
 
-  // I2I 模型 (wan2.5-i2i-preview)
+  // I2I：wan2.5-i2i-preview
   if (options.model === 'wan2.5-i2i-preview') {
     servicePath = WAN_I2I_SERVICE_PATH;
-    // I2I 模型需要 images 数组参数
-    if (options.image_reference) {
-      payload.input.images = [options.image_reference];
-    }
-    // I2I 模型通常不需要 size (会跟随原图或默认)，但也可能支持
-    // 确保 prompt_extend 参数开启（参考 curl 示例）
+    // i2i 不一定支持/需要 size，移除以避免 400
+    delete payload.parameters.size;
+    // 参考 curl 示例：prompt_extend=true
     payload.parameters.prompt_extend = true;
-  }
-  
-  // T2I 模型 (wanx-v1 等)
-  else {
-    // wanx-v1 支持 ref_img
-    if (options.model === 'wanx-v1' && options.image_reference) {
-      payload.input.ref_img = options.image_reference;
+    if (options.image_reference) {
+      const refs = Array.isArray(options.image_reference) ? options.image_reference : [options.image_reference];
+      payload.input.images = refs.map((r) => normalizeI2IImageInput(r));
     }
+    // i2i 的参数校验更严格：先不传 negative_prompt（部分版本会导致 InvalidParameter 且报错信息不直观）
+    // 需要时可后续根据官方文档再开启
+    // Debug: 打印 images 数量/类型，避免“看起来传了5张但服务端认为不合法”的情况
+    const imgs: any[] = Array.isArray(payload.input.images) ? payload.input.images : [];
+    const summary = imgs.slice(0, 6).map((s) => {
+      const str = typeof s === 'string' ? s : '';
+      const kind =
+        str.startsWith('http') ? 'url' : str.startsWith('data:') ? 'dataurl' : str.startsWith('base64://') ? 'base64' : 'other';
+      return { kind, len: str.length, head: str.slice(0, 18) };
+    });
+    console.log('[DashScope i2i] images.length=', imgs.length, 'summary=', summary);
   }
 
-  if (options.negative_prompt) {
+  // T2I + ref：wanx-v1
+  if (options.model === 'wanx-v1' && options.image_reference && !Array.isArray(options.image_reference)) {
+    payload.input.ref_img = options.image_reference;
+  }
+  // negative_prompt：仅对文生图透传到 input（避免 i2i 参数不兼容）
+  if (options.model !== 'wan2.5-i2i-preview' && options.negative_prompt) {
     payload.input.negative_prompt = options.negative_prompt;
   }
 
@@ -114,8 +135,16 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
     'X-DashScope-Async': 'enable',
   };
 
-  const response = await http.post(servicePath, payload, { headers });
-  const data = response.data || {};
+  let data: any;
+  try {
+    const response = await http.post(servicePath, payload, { headers });
+    data = response.data || {};
+  } catch (err: any) {
+    const status = err?.response?.status;
+    const respData = err?.response?.data;
+    const brief = typeof respData === 'string' ? respData.slice(0, 500) : JSON.stringify(respData)?.slice(0, 500);
+    throw new Error(`DashScope 万相请求失败${status ? ` (${status})` : ''}: ${brief || err.message || err}`);
+  }
 
   const taskId =
     data?.output?.task_id ||
@@ -207,7 +236,7 @@ export async function generateImageWithWan(
     model?: GenerationModel;
     negative_prompt?: string;
     size?: string;
-    image_reference?: string;
+    image_reference?: string | string[];
   }
 ): Promise<string> {
   const model = options?.model && isWanGenerationModel(options.model)

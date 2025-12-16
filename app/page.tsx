@@ -468,9 +468,9 @@ export default function Home() {
                                 const page = comicBook.pages[i];
                                 // 关键：离屏渲染，把“对话气泡/旁白”也画进导出图，避免下载后缺失
                                 const canvas = await renderComicPageToCanvas(page);
-                                canvases.push({
-                                  canvas,
-                                  filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
+                                      canvases.push({
+                                        canvas,
+                                        filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
                                 });
                               }
 

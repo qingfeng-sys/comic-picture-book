@@ -33,6 +33,8 @@ async function postHandler(request: NextRequest) {
       segmentId: z.number().int().optional(),
       model: z.string().optional(),
       characterReferences: z.record(z.string()).optional(), // role/name -> reference image url
+      referenceImage: z.string().optional(), // global/collage reference image (data url or url)
+      referenceImages: z.array(z.string()).optional(), // for i2i: multiple base images (urls or data urls)
     });
 
     const parseResult = schema.safeParse(await request.json());
@@ -40,7 +42,18 @@ async function postHandler(request: NextRequest) {
       return validationError();
     }
 
-    const { scriptSegment, storyboard, startPageNumber, scriptId, segmentId, model, characterReferences } = parseResult.data;
+    const {
+      scriptSegment,
+      storyboard,
+      startPageNumber,
+      scriptId,
+      segmentId,
+      model,
+      characterReferences,
+      referenceImage,
+      referenceImages,
+    } =
+      parseResult.data;
     const generationModel = (model as GenerationModel | undefined) || undefined;
 
     let pages;
@@ -53,13 +66,17 @@ async function postHandler(request: NextRequest) {
           storyboard as StoryboardData,
           startPageNumber || 1,
           generationModel,
-          characterReferences
+          characterReferences,
+          referenceImage,
+          referenceImages
         )
         : await generateComicPagesFromStoryboard(
           storyboard as StoryboardData,
           startPageNumber || 1,
           undefined,
-          characterReferences
+          characterReferences,
+          referenceImage,
+          referenceImages
         );
     } else if (scriptSegment && typeof scriptSegment === 'string') {
       // 兼容旧格式：从文本提取
@@ -69,13 +86,17 @@ async function postHandler(request: NextRequest) {
           scriptSegment,
           startPageNumber || 1,
           generationModel,
-          characterReferences
+          characterReferences,
+          referenceImage,
+          referenceImages
         )
         : await generateComicPages(
           scriptSegment,
           startPageNumber || 1,
           undefined,
-          characterReferences
+          characterReferences,
+          referenceImage,
+          referenceImages
         );
     } else {
       return NextResponse.json(

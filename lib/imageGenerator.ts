@@ -257,8 +257,14 @@ import path from 'path';
 /**
  * 检查参考图是否为本地路径，如果是则转换为Base64
  */
-async function checkAndConvertReferenceImage(url?: string): Promise<string | undefined> {
+async function checkAndConvertReferenceImage(
+  url?: string | string[]
+): Promise<string | string[] | undefined> {
   if (!url) return undefined;
+  if (Array.isArray(url)) {
+    const converted = await Promise.all(url.map((u) => checkAndConvertReferenceImage(u)));
+    return converted.filter(Boolean) as string[];
+  }
 
   // 如果已经是base64或http链接，直接返回
   if (url.startsWith('data:') || url.startsWith('http')) {
@@ -303,40 +309,77 @@ export async function generateComicPageImage(
   pageNumber: number,
   retryCount: number = 0,
   generationModel: GenerationModel = DEFAULT_MODEL,
-  characterReference?: string
+  characterReference?: string | string[]
 ): Promise<string> {
   const prompt = generateImagePrompt(pageText, pageNumber);
   const maxRetries = 2; // 最多重试2次
   const modelToUse = normalizeGenerationModel(generationModel);
-  const negativePrompt = '恐怖，暴力，成人内容，低质量，模糊，变形';
+  // 加强“避免头像特写/半张脸/裁切”的负面约束
+  const negativePrompt =
+    '恐怖，暴力，成人内容，低质量，模糊，变形，头像特写，证件照，半张脸，裁切脸部，裁切人物，只有头部，近景特写，极端近距离';
   
   // 处理参考图：如果是本地路径，转换为Base64
   const processedReference = await checkAndConvertReferenceImage(characterReference);
   
-  if (characterReference && processedReference !== characterReference) {
-    console.log(`[生成第${pageNumber}页] 使用转换后的Base64参考图 (原路径: ${characterReference})`);
-  }
+  // 避免把整段 base64/dataURL 打到终端（会刷屏）
+  const describeRef = (r: string) => {
+    const kind = r.startsWith('http') ? 'url' : r.startsWith('data:') ? 'dataurl' : r.startsWith('/') ? 'local' : 'other';
+    return { kind, len: r.length, head: r.slice(0, 18) };
+  };
+  const logRefChange = () => {
+    if (!characterReference || !processedReference) return;
+    if (typeof characterReference === 'string' && typeof processedReference === 'string') {
+      if (processedReference !== characterReference) {
+        console.log(`[生成第${pageNumber}页] 参考图已转换`, {
+          from: describeRef(characterReference),
+          to: describeRef(processedReference),
+        });
+      }
+      return;
+    }
+    if (Array.isArray(characterReference) && Array.isArray(processedReference)) {
+      const changed =
+        characterReference.length !== processedReference.length ||
+        characterReference.some((v, i) => processedReference[i] !== v);
+      if (changed) {
+        console.log(`[生成第${pageNumber}页] 参考图数组已转换`, {
+          count: processedReference.length,
+          from: characterReference.slice(0, 5).map(describeRef),
+          to: processedReference.slice(0, 5).map(describeRef),
+        });
+      }
+    }
+  };
+  logRefChange();
   
   try {
-    console.log(`正在生成第${pageNumber}页图像，提示词: ${prompt}`);
+    // wanx-v1 容易退化成“纯头像/证件照风格”，这里额外强制场景化与构图完整
+    const finalPrompt =
+      modelToUse === 'wanx-v1'
+        ? `绘本场景插图（必须包含环境背景与完整构图，人物全身或半身，非头像特写、非证件照、非裁切脸部）：${prompt}`
+        : prompt;
+
+    console.log(`正在生成第${pageNumber}页图像，提示词: ${finalPrompt}`);
     
     const imageUrl = isWanGenerationModel(modelToUse)
-      ? await generateImageWithWan(prompt, {
+      ? await generateImageWithWan(finalPrompt, {
         model: modelToUse,
         negative_prompt: negativePrompt,
         size: '1024*1024',
-        // wanx-v1 和 wan2.5-i2i-preview 支持参考图：透传 image_reference 用于跨帧一致性
-        image_reference: (modelToUse === 'wanx-v1' || modelToUse === 'wan2.5-i2i-preview') ? processedReference : undefined,
+        // 参考图：
+        // - wan2.5-i2i-preview：作为 i2i，需要底图（images）
+        // - wanx-v1：目前 ref_img 更像“底图/编辑”而非“弱参考”，会导致生成结果退化为头像/局部裁切，因此在绘本生成阶段禁用
+        image_reference: modelToUse === 'wan2.5-i2i-preview' ? (processedReference as any) : undefined,
       })
       : await generateImageWithQiniu(
-        prompt,
+        finalPrompt,
         {
           negative_prompt: negativePrompt,
           aspect_ratio: '1:1',
           human_fidelity: 0.8,
           model: modelToUse,
           // 七牛支持 image_reference（用于角色一致性/图生图参考）
-          image_reference: processedReference,
+          image_reference: processedReference as any,
         }
       );
     
@@ -355,7 +398,8 @@ export async function generateComicPageImage(
       const waitTime = (retryCount + 1) * 2000; // 递增等待时间：2秒、4秒
       console.log(`等待 ${waitTime}ms 后重试...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
-      return generateComicPageImage(pageText, pageNumber, retryCount + 1, modelToUse);
+      // 保持参考图参数不丢失（i2i 模型必须有 images）
+      return generateComicPageImage(pageText, pageNumber, retryCount + 1, modelToUse, characterReference);
     }
     
     // 所有重试都失败，抛出错误而不是返回占位符
@@ -371,12 +415,27 @@ export async function generateComicPagesFromStoryboard(
   storyboardData: StoryboardData,
   startPageNumber: number = 1,
   generationModel: GenerationModel = DEFAULT_MODEL,
-  characterReferences?: Record<string, string>
+  characterReferences?: Record<string, string>,
+  referenceImage?: string,
+  referenceImages?: string[]
 ): Promise<Array<{ pageNumber: number; imageUrl: string; text: string; dialogue?: DialogueItem[]; narration?: string }>> {
   const comicPages = [];
+
+  // 稳定气泡与说话人位置：根据全局统计推断每个角色的“常驻侧”（左/右/中），
+  // 并对单帧内坐标明显错配（如两人坐标互换）做自动纠正。
+  const normalizedStoryboard = normalizeStoryboardDialoguePositions(storyboardData);
   
-  for (let i = 0; i < storyboardData.frames.length; i++) {
-    const frame = storyboardData.frames[i];
+  const normalizeRoleKey = (raw?: string): string | undefined => {
+    if (!raw) return undefined;
+    const s = String(raw).trim();
+    if (!s) return undefined;
+    // 去掉常见的后缀修饰：冒号、括号、方括号等
+    const base = s.split(/[：:\(（\[【\{]/)[0]?.trim();
+    return base || undefined;
+  };
+
+  for (let i = 0; i < normalizedStoryboard.frames.length; i++) {
+    const frame = normalizedStoryboard.frames[i];
     const pageNumber = startPageNumber + i;
     
     // 在第一张图片前添加短暂延迟，避免API并发问题
@@ -385,10 +444,59 @@ export async function generateComicPagesFromStoryboard(
     }
     
     try {
-      const primaryRole = frame.dialogues?.[0]?.role;
-      const refUrl = primaryRole && characterReferences ? (characterReferences[primaryRole] || characterReferences[primaryRole.trim()]) : undefined;
+      // 参考图选择策略（避免 wanx-v1 被“拼图”牵引成头像特写）：
+      // - wan2.5-i2i-preview：优先使用 referenceImage（通常为拼图/底图）
+      // - 其他模型（含 wanx-v1）：忽略 referenceImage，仅按角色名匹配单人立绘
+      let refUrl: string | string[] | undefined = undefined;
+
+      if (generationModel === 'wan2.5-i2i-preview') {
+        // i2i 模型：只传“本帧出现的角色”的立绘，避免一次性塞太多图触发模型参数限制
+        const perFrameRefs: string[] = [];
+        const seen = new Set<string>();
+        if (characterReferences && frame.dialogues && frame.dialogues.length > 0) {
+          for (const d of frame.dialogues) {
+            const key = normalizeRoleKey(d.role);
+            if (!key) continue;
+            const hit = characterReferences[key] || characterReferences[key.trim()];
+            if (hit && !seen.has(hit)) {
+              perFrameRefs.push(hit);
+              seen.add(hit);
+            }
+          }
+        }
+
+        if (perFrameRefs.length > 0) {
+          // 优先用“本帧角色命中”的参考图（通常 1~3 张），避免把全量角色图塞进来
+          refUrl = perFrameRefs.slice(0, 5);
+        } else {
+          // 若本帧没法从角色名命中，再 fallback 到请求传入的 referenceImages / referenceImage
+          const fromRequest =
+            referenceImages && referenceImages.length > 0
+              ? referenceImages
+              : referenceImage
+                ? [referenceImage]
+                : [];
+          refUrl = fromRequest.length > 0 ? fromRequest.slice(0, 5) : undefined;
+        }
+      }
+
+      if (!refUrl && characterReferences && frame.dialogues && frame.dialogues.length > 0) {
+        for (const d of frame.dialogues) {
+          const key = normalizeRoleKey(d.role);
+          if (!key) continue;
+          const hit = characterReferences[key] || characterReferences[key.trim()];
+          if (hit) {
+            refUrl = hit;
+            break;
+          }
+        }
+      }
       // 使用frame的image_prompt生成图片
-      const imageUrl = await generateComicPageImage(frame.image_prompt, pageNumber, 0, generationModel, refUrl);
+      // 关键：模型生成的“人物左右站位”经常与分镜坐标不一致，会造成“气泡贴错人”的观感。
+      // 这里根据 dialogues 的 x_ratio 反向把“左右站位约束”写进图片提示词，尽量让画面与气泡坐标一致。
+      const layoutHint = buildLayoutHintFromDialogues(frame.dialogues || []);
+      const promptForImage = layoutHint ? `${frame.image_prompt}。构图要求：${layoutHint}` : frame.image_prompt;
+      const imageUrl = await generateComicPageImage(promptForImage, pageNumber, 0, generationModel, refUrl);
       
       // 验证URL是否有效
       if (!imageUrl || imageUrl.includes('via.placeholder.com') || imageUrl.includes('placeholder')) {
@@ -431,6 +539,129 @@ export async function generateComicPagesFromStoryboard(
   return comicPages;
 }
 
+function buildLayoutHintFromDialogues(dialogues: DialogueItem[]): string {
+  if (!dialogues || dialogues.length === 0) return '';
+  // 取每个角色的平均 x_ratio / y_ratio，用“九宫格方位”描述站位（左上/中上/右上...）
+  const roleToXs = new Map<string, number[]>();
+  const roleToYs = new Map<string, number[]>();
+  for (const d of dialogues) {
+    const role = String(d.role || '').trim();
+    if (!role) continue;
+    const x = typeof d.x_ratio === 'number' && !Number.isNaN(d.x_ratio) ? d.x_ratio : 0.5;
+    const y = typeof d.y_ratio === 'number' && !Number.isNaN(d.y_ratio) ? d.y_ratio : 0.4;
+    if (!roleToXs.has(role)) roleToXs.set(role, []);
+    roleToXs.get(role)!.push(Math.min(1, Math.max(0, x)));
+    if (!roleToYs.has(role)) roleToYs.set(role, []);
+    roleToYs.get(role)!.push(Math.min(1, Math.max(0, y)));
+  }
+  if (roleToXs.size === 0) return '';
+
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+  const xSide = (x: number) => (x < 0.45 ? '左' : x > 0.55 ? '右' : '中');
+  const yBand = (y: number) => (y < 0.33 ? '上' : y > 0.66 ? '下' : '中');
+  const posName = (x: number, y: number) => `画面${xSide(x)}${yBand(y)}方`;
+
+  const parts: string[] = [];
+  // 限制最多输出 4 个角色，避免提示词过长导致模型忽略
+  const entries = Array.from(roleToXs.entries()).slice(0, 4);
+  for (const [role, xs] of entries) {
+    const ys = roleToYs.get(role) || [];
+    const ax = avg(xs);
+    const ay = ys.length > 0 ? avg(ys) : 0.4;
+    parts.push(`${role}在${posName(ax, ay)}`);
+  }
+  // 强约束：避免角色换位/镜像；并要求给气泡留出空白区域
+  parts.push('保持人物站位与对白气泡位置一致，禁止左右镜像翻转或互换角色位置');
+  parts.push('为对白气泡预留空白，不要让人物头部被气泡遮挡');
+  return parts.join('，');
+}
+
+function normalizeStoryboardDialoguePositions(storyboard: StoryboardData): StoryboardData {
+  // 深拷贝（避免修改入参，尤其是复用到本地存储对象时）
+  const cloned: StoryboardData = {
+    frames: storyboard.frames.map((f) => ({
+      ...f,
+      dialogues: (f.dialogues || []).map((d) => ({ ...d })),
+    })),
+  };
+
+  // 收集每个角色的 x_ratio 分布（用于推断“常驻侧”）
+  const xsByRole = new Map<string, number[]>();
+  for (const frame of cloned.frames) {
+    for (const d of frame.dialogues || []) {
+      const role = String(d.role || '').trim();
+      if (!role) continue;
+      const x = typeof d.x_ratio === 'number' && !Number.isNaN(d.x_ratio) ? d.x_ratio : 0.5;
+      if (!xsByRole.has(role)) xsByRole.set(role, []);
+      xsByRole.get(role)!.push(Math.min(1, Math.max(0, x)));
+    }
+  }
+
+  const median = (arr: number[]) => {
+    if (arr.length === 0) return 0.5;
+    const s = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid];
+  };
+
+  const roleMedianX = new Map<string, number>();
+  for (const [role, xs] of xsByRole.entries()) {
+    if (xs.length >= 2) roleMedianX.set(role, median(xs));
+  }
+
+  const recommendedAnchor = (x: number) => (x < 0.45 ? 'left' : x > 0.55 ? 'right' : 'center');
+
+  // 逐帧纠正
+  for (const frame of cloned.frames) {
+    const ds = frame.dialogues || [];
+
+    // 夹紧坐标 + anchor 与坐标对齐
+    for (const d of ds) {
+      d.x_ratio = Math.min(1, Math.max(0, typeof d.x_ratio === 'number' && !Number.isNaN(d.x_ratio) ? d.x_ratio : 0.5));
+      d.y_ratio = Math.min(1, Math.max(0, typeof d.y_ratio === 'number' && !Number.isNaN(d.y_ratio) ? d.y_ratio : 0.4));
+      d.anchor = recommendedAnchor(d.x_ratio);
+    }
+
+    // 常见错配：同一帧两人对话时，x/y 坐标互换（导致“说话人错配”的观感）
+    if (ds.length === 2) {
+      const a = ds[0];
+      const b = ds[1];
+      const roleA = String(a.role || '').trim();
+      const roleB = String(b.role || '').trim();
+      if (roleA && roleB && roleA !== roleB) {
+        const mA = roleMedianX.get(roleA);
+        const mB = roleMedianX.get(roleB);
+        if (typeof mA === 'number' && typeof mB === 'number') {
+          const distA = Math.abs(a.x_ratio - mA) + Math.abs(b.x_ratio - mB);
+          const distSwapped = Math.abs(a.x_ratio - mB) + Math.abs(b.x_ratio - mA);
+          // 如果交换坐标能显著更贴近各自角色的常驻侧，则交换坐标（不交换 role/text）
+          if (distSwapped + 0.08 < distA) {
+            const ax = a.x_ratio, ay = a.y_ratio;
+            a.x_ratio = b.x_ratio; a.y_ratio = b.y_ratio;
+            b.x_ratio = ax; b.y_ratio = ay;
+            a.anchor = recommendedAnchor(a.x_ratio);
+            b.anchor = recommendedAnchor(b.x_ratio);
+          }
+        }
+      }
+    }
+
+    // 轻度纠正：如果某角色坐标极端偏离其常驻侧，则拉回到中位数附近（避免偶发翻边）
+    for (const d of ds) {
+      const role = String(d.role || '').trim();
+      const m = roleMedianX.get(role);
+      if (typeof m === 'number') {
+        if (Math.abs(d.x_ratio - m) > 0.35) {
+          d.x_ratio = m;
+          d.anchor = recommendedAnchor(d.x_ratio);
+        }
+      }
+    }
+  }
+
+  return cloned;
+}
+
 /**
  * 批量生成绘本页面（旧方法，从文本提取）
  */
@@ -438,7 +669,9 @@ export async function generateComicPages(
   scriptSegment: string,
   startPageNumber: number = 1,
   generationModel: GenerationModel = DEFAULT_MODEL,
-  characterReferences?: Record<string, string>
+  characterReferences?: Record<string, string>,
+  referenceImage?: string,
+  referenceImages?: string[]
 ): Promise<Array<{ pageNumber: number; imageUrl: string; text: string; dialogue?: string[]; narration?: string }>> {
   // 将脚本片段按页分割
   const pages = splitScriptIntoPages(scriptSegment);
@@ -451,12 +684,26 @@ export async function generateComicPages(
     // 提取对话和旁白
     const dialogue = extractDialogue(pageText);
     const narration = extractNarration(pageText);
-
-    // 文本模式下：取第一条对话的角色名（“角色：...”）尝试匹配参考图
-    const firstDialogue = dialogue[0] || '';
-    const roleMatch = firstDialogue.match(/^([^：:]+)[：:]/);
-    const role = roleMatch?.[1]?.trim();
-    const refUrl = role && characterReferences ? (characterReferences[role] || characterReferences[role.trim()]) : undefined;
+    
+    // 参考图选择策略（避免 wanx-v1 被“拼图”牵引成头像特写）：
+    // - wan2.5-i2i-preview：优先使用 referenceImage（通常为拼图/底图）
+    // - 其他模型（含 wanx-v1）：忽略 referenceImage，仅按角色名匹配单人立绘
+    let refUrl: string | string[] | undefined =
+      generationModel === 'wan2.5-i2i-preview'
+        ? (referenceImages && referenceImages.length > 0 ? referenceImages : (referenceImage || undefined))
+        : undefined;
+    if (!refUrl && characterReferences && dialogue.length > 0) {
+      for (const line of dialogue) {
+        const roleMatch = line.match(/^([^：:（(\\[【]+)[：:]/);
+        const role = roleMatch?.[1]?.trim();
+        if (!role) continue;
+        const hit = characterReferences[role] || characterReferences[role.trim()];
+        if (hit) {
+          refUrl = hit;
+          break;
+        }
+      }
+    }
 
     const imageUrl = await generateComicPageImage(pageText, pageNumber, 0, generationModel, refUrl);
     
