@@ -1,3 +1,16 @@
+# =============================================================================
+# DEPRECATED / ARCHIVED (历史脚本 - 不建议继续使用)
+#
+# 该脚本已被归档到 tools/ps1/_archive/，仅保留供参考。
+# 推荐替代：
+# - 绑定实际 IP 启动：  .\tools\ps1\dev\start-dev-with-ip.ps1
+# - 标准启动（监听 0.0.0.0）：.\start-dev.ps1
+# =============================================================================
+
+Write-Host "⚠ [已弃用] dev-with-real-ip.ps1 已归档，仅供参考。" -ForegroundColor Yellow
+Write-Host "   请改用: .\tools\ps1\dev\start-dev-with-ip.ps1 或 .\start-dev.ps1" -ForegroundColor Yellow
+Write-Host ""
+
 # 使用实际 IP 地址启动 Next.js 开发服务器
 Write-Host "=== 使用实际 IP 启动 Next.js 开发服务器 ===" -ForegroundColor Cyan
 Write-Host ""
@@ -29,6 +42,7 @@ if ($ipAddresses) {
     # 回退到 0.0.0.0
     npm run dev
 }
+
 
 
 

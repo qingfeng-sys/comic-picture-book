@@ -23,39 +23,39 @@ chmod +x setup-env.sh
 2. 复制以下内容到文件中：
 
 ```env
-# DeepSeek API配置（用于生成故事脚本）
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# DashScope API配置（用于生成故事大纲/剧本/分镜）
+DASHSCOPE_API_KEY=your_dashscope_api_key_here
 
 # 七牛云API配置（用于生成绘本图像）
 QINIU_API_KEY=your_qiniu_api_key_here
 
-# OpenAI API配置（用于图像生成，可选，已使用七牛云）
-# OPENAI_API_KEY=your_openai_api_key_here
+# 可选：启用调用前密钥校验（会增加一次额外调用，可能产生费用）
+# ENABLE_API_KEY_VERIFICATION=true
+
+# （可选）DashScope 文本生成超时（毫秒，模型较大/高峰期可适当加大）
+# DASHSCOPE_SCRIPT_TIMEOUT_MS=90000
+# DASHSCOPE_STORYBOARD_TIMEOUT_MS=120000
 ```
 
 3. 保存文件
 
 ## 必需配置
 
-### 1. DeepSeek API密钥
-应用的核心功能需要DeepSeek API来生成故事脚本。
+### 1. DashScope API密钥（必需）
+应用的核心功能需要 DashScope 文本生成来生成故事大纲/剧本/分镜。
 
 **已配置的API密钥：** *请在部署环境配置，勿在仓库中存放*
 
-如果使用其他API密钥，请：
-1. 访问 [DeepSeek官网](https://www.deepseek.com/) 注册账号
-2. 获取API密钥
-3. 在 `.env.local` 文件中替换 `DEEPSEEK_API_KEY` 的值
+请在部署环境通过环境变量提供自己的 `DASHSCOPE_API_KEY`，不要把真实密钥写入仓库。
 
-### 2. 七牛云API密钥（用于图像生成）
-应用使用七牛云文生图API（kling-v1模型）来生成绘本图像。
+### 2. 七牛云API密钥（必需，用于图像生成）
+应用使用七牛云文生图 API 生成绘本图像。
 
 **已配置的API密钥：** *请在部署环境配置，勿在仓库中存放*
 
-**API信息：**
+**API信息（参考）：**
 - API接入点：`https://api.qnaigc.com/v1`
 - 接口名：`/images/generations`
-- 模型ID：`kling-v1`
 
 如果使用其他API密钥，请：
 1. 访问 [七牛云AI平台](https://www.qiniu.com/) 注册账号
@@ -64,20 +64,10 @@ QINIU_API_KEY=your_qiniu_api_key_here
 
 ## 可选配置
 
-### OpenAI API密钥（备用图像生成选项）
-如果你想使用OpenAI DALL-E而不是七牛云，可以配置：
-
-1. 访问 [OpenAI官网](https://platform.openai.com/) 注册账号
-2. 获取API密钥
-3. 在 `.env.local` 文件中添加：
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-4. 修改 `lib/imageGenerator.ts` 中的 `generateComicPageImage` 函数，使用OpenAI API
-
-**注意**：当前默认使用七牛云API，如需切换请修改代码。
+### DashScope 文本生成超时
+如果在高峰期/大模型场景下偶发超时，可以在 `.env.local` 增加（单位：毫秒）：
+- `DASHSCOPE_SCRIPT_TIMEOUT_MS`
+- `DASHSCOPE_STORYBOARD_TIMEOUT_MS`
 
 ## 验证配置
 

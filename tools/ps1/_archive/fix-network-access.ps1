@@ -1,3 +1,17 @@
+# =============================================================================
+# DEPRECATED / ARCHIVED (历史脚本 - 不建议继续使用)
+#
+# 该脚本已被归档到 tools/ps1/_archive/，仅保留供参考。
+# 推荐替代（更安全、入口更清晰）：
+# - 配置/检查网络访问：.\setup-network.ps1
+# - 启动开发服务器：    .\start-dev.ps1
+# - 诊断网络问题：      .\diagnose-network-access.ps1
+# =============================================================================
+
+Write-Host "⚠ [已弃用] fix-network-access.ps1 已归档，仅供参考。" -ForegroundColor Yellow
+Write-Host "   请改用: .\setup-network.ps1 + .\start-dev.ps1（或 .\diagnose-network-access.ps1）" -ForegroundColor Yellow
+Write-Host ""
+
 # 修复网络访问问题脚本
 Write-Host "=== 修复 Next.js 网络访问问题 ===" -ForegroundColor Cyan
 Write-Host ""
@@ -84,6 +98,7 @@ Write-Host "   - 设备是否在同一局域网" -ForegroundColor Gray
 Write-Host "   - 防火墙是否允许连接（可能需要管理员权限）" -ForegroundColor Gray
 Write-Host "   - 路由器是否阻止了设备间通信" -ForegroundColor Gray
 Write-Host ""
+
 
 
 

@@ -1,3 +1,29 @@
+# =============================================================================
+# DANGEROUS / ARCHIVED (高风险历史脚本 - 默认不建议使用)
+#
+# 该脚本已被归档到 tools/ps1/_archive/，仅保留供参考。
+# 风险点：
+# - 自动申请管理员权限（RunAs）
+# - 可能修改系统防火墙规则
+# - 可能修改项目文件（package.json）
+#
+# 推荐替代（更安全、入口更清晰）：
+# - 配置/检查网络访问：.\setup-network.ps1
+# - 启动开发服务器：    .\start-dev.ps1
+# - 诊断网络问题：      .\diagnose-network-access.ps1
+# =============================================================================
+
+Write-Host "🚨 [高风险已归档] DANGEROUS-fix-network-access-complete.ps1" -ForegroundColor Red
+Write-Host "    该脚本可能修改防火墙规则/项目配置，并会尝试提权。" -ForegroundColor Red
+Write-Host "    推荐改用: .\\setup-network.ps1 + .\\start-dev.ps1（或 .\\diagnose-network-access.ps1）" -ForegroundColor Yellow
+Write-Host ""
+
+$confirm = Read-Host "如仍要继续运行此【高风险历史脚本】，请输入 YES（其他任意输入将退出）"
+if ($confirm -ne "YES") {
+  Write-Host "已取消运行。" -ForegroundColor Yellow
+  exit 1
+}
+
 # 完整的网络访问修复脚本
 # 自动检测并修复所有网络访问问题
 

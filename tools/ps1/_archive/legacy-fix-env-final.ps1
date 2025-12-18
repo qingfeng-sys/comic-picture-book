@@ -1,3 +1,20 @@
+# =============================================================================
+# DEPRECATED / ARCHIVED (历史脚本 - 不建议继续使用)
+#
+# 该脚本会覆盖写入 .env.local（旧模板），并删除 .next / node_modules\.cache。
+# 已归档到 tools/ps1/_archive/，仅保留供参考。
+#
+# 推荐替代：
+# - 生成/更新当前项目 env 模板：.\setup-env.ps1
+# - 校验 env 配置：            .\verify-env.ps1
+#
+# 注意：清理缓存属于破坏性操作，运行前请确认没有需要保留的构建缓存。
+# =============================================================================
+
+Write-Host "⚠ [已弃用] legacy-fix-env-final.ps1 已归档（会覆盖 env/删缓存），仅供参考。" -ForegroundColor Yellow
+Write-Host "   请优先改用: .\setup-env.ps1 + .\verify-env.ps1（必要时再手动删除 .next）" -ForegroundColor Yellow
+Write-Host ""
+
 # 最终修复环境变量问题
 Write-Host "=== 最终修复环境变量问题 ===" -ForegroundColor Cyan
 Write-Host ""

@@ -41,7 +41,7 @@ ipconfig
 
 **方法 C: 使用提供的脚本**
 ```powershell
-.\start-dev-with-ip.ps1
+.\tools\ps1\dev\start-dev-with-ip.ps1
 ```
 这个脚本会自动显示你的 IP 地址。
 
@@ -80,7 +80,7 @@ New-NetFirewallRule -DisplayName "Next.js Dev Server Port 3000" `
 
 **推荐方式：使用自动显示 IP 的脚本**
 ```powershell
-.\start-dev-with-ip.ps1
+.\tools\ps1\dev\start-dev-with-ip.ps1
 ```
 
 **或者直接启动：**
@@ -148,7 +148,7 @@ npx next dev -H 0.0.0.0 -p 3000
 
 运行以下脚本进行快速诊断和启动：
 ```powershell
-.\start-dev-with-ip.ps1
+.\tools\ps1\dev\start-dev-with-ip.ps1
 ```
 
 这个脚本会：
@@ -184,6 +184,7 @@ npx next dev -H 0.0.0.0 -p 3000
 2. ✅ 找到你的实际 IP 地址（192.168.x.x）
 3. ✅ 设置防火墙允许端口 3000
 4. ✅ 使用实际 IP 地址访问，**不要使用 0.0.0.0**
+
 
 
 

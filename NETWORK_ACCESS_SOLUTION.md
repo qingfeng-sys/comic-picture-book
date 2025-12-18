@@ -8,9 +8,9 @@
 
 ### 快速修复（推荐）
 
-1. **运行完整修复脚本**（需要管理员权限）：
+1. **运行一键修复脚本**（需要管理员权限）：
    ```powershell
-   .\fix-network-access-complete.ps1
+   .\一键修复网络访问.bat
    ```
 
 2. **运行诊断脚本**（检查问题）：
@@ -196,7 +196,7 @@ API 路由已经配置了 CORS 头，允许开发环境下的跨域请求：
 
 ## 相关文件
 
-- `fix-network-access-complete.ps1` - 完整修复脚本
+- `setup-network.ps1` - 网络配置脚本（防火墙/提示 IP/验证监听）
 - `diagnose-network-access.ps1` - 诊断脚本
 - `设置防火墙.bat` - 防火墙设置脚本
 - `next.config.js` - Next.js 配置文件

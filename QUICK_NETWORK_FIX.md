@@ -47,7 +47,7 @@ netstat -ano | findstr :3000
 
 使用提供的脚本，会自动显示你的 IP 地址：
 ```powershell
-.\start-dev-with-ip.ps1
+.\tools\ps1\dev\start-dev-with-ip.ps1
 ```
 
 ## 总结
@@ -56,6 +56,7 @@ netstat -ano | findstr :3000
 - ✅ 使用实际 IP 地址访问（如 `192.168.1.199:3000`）
 - ✅ 确保防火墙允许端口 3000
 - ❌ 不要访问 `0.0.0.0:3000`
+
 
 
 

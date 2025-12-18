@@ -23,6 +23,8 @@ export default function CharacterLibrary() {
     | { type: 'script'; scriptId: string; title: string }
     | { type: 'custom'; title: string }
   >({ type: 'custom', title: '自定义角色' });
+  const [moveTargetById, setMoveTargetById] = useState<Record<string, string>>({});
+  const [moveOpenForId, setMoveOpenForId] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -57,6 +59,18 @@ export default function CharacterLibrary() {
     const groups = new Map<string, { scriptId: string; title: string; characters: CharacterProfile[] }>();
     for (const s of scriptsSorted) {
       groups.set(s.id, { scriptId: s.id, title: s.title, characters: [] });
+    }
+
+    // 如果脚本已被删除，但角色仍绑定了 sourceScriptId，则创建“残留分组”以保持位置稳定
+    for (const c of sortedAll) {
+      if (c.sourceType !== 'script' || !c.sourceScriptId) continue;
+      if (!groups.has(c.sourceScriptId)) {
+        groups.set(c.sourceScriptId, {
+          scriptId: c.sourceScriptId,
+          title: c.sourceScriptTitle || `已删除脚本（${c.sourceScriptId}）`,
+          characters: [],
+        });
+      }
     }
 
     // 先放入明确标注来源的角色
@@ -176,6 +190,34 @@ export default function CharacterLibrary() {
     setCharacters(loadCharactersFromStorage());
   }
 
+  function handleMoveCharacter(c: CharacterProfile, target: string) {
+    // target: "custom" or scriptId
+    const now = new Date().toISOString();
+    if (target === 'custom') {
+      const next: CharacterProfile = {
+        ...c,
+        sourceType: 'custom',
+        sourceScriptId: undefined,
+        sourceScriptTitle: undefined,
+        updatedAt: now,
+      };
+      upsertCharacter(next);
+      setCharacters(loadCharactersFromStorage());
+      return;
+    }
+
+    const script = scripts.find((s) => s.id === target);
+    const next: CharacterProfile = {
+      ...c,
+      sourceType: 'script',
+      sourceScriptId: target,
+      sourceScriptTitle: script?.title || c.sourceScriptTitle || `脚本（${target}）`,
+      updatedAt: now,
+    };
+    upsertCharacter(next);
+    setCharacters(loadCharactersFromStorage());
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="text-center mb-8">
@@ -289,8 +331,66 @@ export default function CharacterLibrary() {
                               {c.description && <div className="text-xs text-gray-600 mt-1 line-clamp-2">{c.description}</div>}
                               {c.visual && <div className="text-xs text-gray-500 mt-1 line-clamp-2">外观：{c.visual}</div>}
                             </div>
-                            <button className="text-red-500 hover:text-red-600 text-sm" onClick={() => handleDelete(c.id)}>删除</button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="text-gray-600 hover:text-gray-800 text-sm"
+                                onClick={() => {
+                                  setMoveOpenForId((prev) => {
+                                    const next = prev === c.id ? null : c.id;
+                                    if (next) {
+                                      setMoveTargetById((m) => ({
+                                        ...m,
+                                        [c.id]: m[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom'),
+                                      }));
+                                    }
+                                    return next;
+                                  });
+                                }}
+                              >
+                                移动
+                              </button>
+                              <button className="text-red-500 hover:text-red-600 text-sm" onClick={() => handleDelete(c.id)}>
+                                删除
+                              </button>
+                            </div>
                           </div>
+
+                          {moveOpenForId === c.id && (
+                            <div className="mt-3 flex items-center gap-2">
+                              <select
+                                className="flex-1 p-2 border-2 border-gray-200 rounded-lg text-sm"
+                                value={moveTargetById[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom')}
+                                onChange={(e) => setMoveTargetById((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                              >
+                                <option value="custom">自定义角色</option>
+                                {scriptGroups.map((g) => (
+                                  <option key={g.scriptId} value={g.scriptId}>
+                                    {g.title}
+                                  </option>
+                                ))}
+                                {scripts
+                                  .filter((s) => !scriptGroups.some((g) => g.scriptId === s.id))
+                                  .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt))
+                                  .map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.title}
+                                    </option>
+                                  ))}
+                              </select>
+                              <button
+                                type="button"
+                                className="text-xs px-3 py-2 rounded border border-gray-300 hover:bg-gray-50"
+                                onClick={() => {
+                                  const target = moveTargetById[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom');
+                                  handleMoveCharacter(c, target);
+                                  setMoveOpenForId(null);
+                                }}
+                              >
+                                确定
+                              </button>
+                            </div>
+                          )}
 
                           <div className="mt-3">
                             <label className="block text-xs font-medium text-gray-700 mb-1">匹配名（逗号分隔）</label>

@@ -123,6 +123,8 @@ export default function Home() {
     }
     
     if (page === 'script') {
+      // “脚本生成/开始创作”应始终进入“生成故事脚本”页，而不是回到编辑态
+      setEditingScript(null);
       setViewMode('script');
     } else if (page === 'comic') {
       setViewMode('comic');
@@ -176,7 +178,8 @@ export default function Home() {
               alert('正在生成中，请稍候...');
             }
           }}
-          initialScript={editingScript}
+          // 仅在显式“编辑故事脚本”模式下才带入 initialScript
+          initialScript={viewMode === 'edit' ? editingScript : null}
           onGeneratingChange={setIsGenerating}
         />
       </MainLayout>

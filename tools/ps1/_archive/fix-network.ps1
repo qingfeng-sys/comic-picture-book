@@ -1,3 +1,19 @@
+# =============================================================================
+# DEPRECATED / ARCHIVED (历史脚本 - 不建议继续使用)
+#
+# 该脚本已被归档到 tools/ps1/_archive/，仅保留供参考。
+# 推荐替代（更安全、入口更清晰）：
+# - 配置/检查网络访问：.\setup-network.ps1
+# - 启动开发服务器：    .\start-dev.ps1
+# - 诊断网络问题：      .\diagnose-network-access.ps1
+#
+# 注意：本脚本可能创建防火墙规则，并以具体 IP 绑定方式启动 Next.js。
+# =============================================================================
+
+Write-Host "⚠ [已弃用] fix-network.ps1 已归档，仅供参考。" -ForegroundColor Yellow
+Write-Host "   请改用: .\setup-network.ps1 + .\start-dev.ps1（或 .\diagnose-network-access.ps1）" -ForegroundColor Yellow
+Write-Host ""
+
 # 网络访问修复脚本
 Write-Host "=== Next.js 网络访问修复 ===" -ForegroundColor Cyan
 Write-Host ""
@@ -56,6 +72,7 @@ if ($ipAddresses) {
     Write-Host ""
     npm run dev
 }
+
 
 
 
