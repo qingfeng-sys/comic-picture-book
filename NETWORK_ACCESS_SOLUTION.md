@@ -15,7 +15,7 @@
 
 2. **运行诊断脚本**（检查问题）：
    ```powershell
-   .\diagnose-network-access.ps1
+   .\tools\ps1\network\diagnose-network-access.ps1
    ```
 
 3. **设置防火墙**（如果修复脚本无法运行）：
@@ -196,8 +196,8 @@ API 路由已经配置了 CORS 头，允许开发环境下的跨域请求：
 
 ## 相关文件
 
-- `setup-network.ps1` - 网络配置脚本（防火墙/提示 IP/验证监听）
-- `diagnose-network-access.ps1` - 诊断脚本
+- `tools/ps1/network/setup-network.ps1` - 网络配置脚本（防火墙/提示 IP/验证监听）
+- `tools/ps1/network/diagnose-network-access.ps1` - 诊断脚本
 - `设置防火墙.bat` - 防火墙设置脚本
 - `next.config.js` - Next.js 配置文件
 - `package.json` - 项目配置和启动脚本

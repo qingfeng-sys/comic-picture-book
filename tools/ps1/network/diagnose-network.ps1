@@ -11,15 +11,13 @@ DEPRECATED (重复脚本已合并)
 =============================================================================
 #>
 
-Write-Host "ℹ 已合并：本脚本将转发到根目录的 diagnose-network-access.ps1" -ForegroundColor Cyan
+Write-Host "ℹ 已合并：本脚本将转发到 diagnose-network-access.ps1" -ForegroundColor Cyan
 
-$scriptDir = Split-Path -Parent $PSCommandPath
-$projectRoot = Resolve-Path (Join-Path $scriptDir "..\\..\\..")
-$target = Join-Path $projectRoot "diagnose-network-access.ps1"
+$target = Join-Path $PSScriptRoot "diagnose-network-access.ps1"
 
 if (-not (Test-Path $target)) {
   Write-Host "✗ 未找到目标脚本: $target" -ForegroundColor Red
-  Write-Host "请在项目根目录运行：.\\diagnose-network-access.ps1" -ForegroundColor Yellow
+  Write-Host "请运行：.\\tools\\ps1\\network\\diagnose-network-access.ps1" -ForegroundColor Yellow
   exit 1
 }
 

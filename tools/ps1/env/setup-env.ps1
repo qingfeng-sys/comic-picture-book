@@ -1,5 +1,8 @@
 # 创建/更新 .env.local（项目必需环境变量模板）
 
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')
+Set-Location $projectRoot
+
 $envFile = ".env.local"
 
 $envContent = @"

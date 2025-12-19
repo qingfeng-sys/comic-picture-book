@@ -17,7 +17,7 @@
 ### 步骤 1: 运行诊断脚本
 
 ```powershell
-.\diagnose-network-access.ps1
+.\tools\ps1\network\diagnose-network-access.ps1
 ```
 
 这个脚本会检查：
@@ -137,7 +137,7 @@ A: 运行 `netstat -ano | findstr :3000`，应该看到 `0.0.0.0:3000`。
 
 ## 快速检查清单
 
-- [ ] 运行 `.\diagnose-network-access.ps1` 诊断问题
+- [ ] 运行 `.\tools\ps1\network\diagnose-network-access.ps1` 诊断问题
 - [ ] 设置防火墙允许端口 3000
 - [ ] 找到实际 IP 地址
 - [ ] 使用实际 IP 访问（不是 0.0.0.0）

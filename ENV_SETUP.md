@@ -6,7 +6,7 @@
 
 **Windows (PowerShell):**
 ```powershell
-.\setup-env.ps1
+.\tools\ps1\env\setup-env.ps1
 ```
 
 **Linux/Mac (Bash):**

@@ -1,4 +1,11 @@
 # 启动 Next.js 开发服务器并显示正确的网络 IP 地址
+#
+# 注意：该脚本位于 tools/ps1/dev。为避免从任意目录执行导致找不到 package.json，
+# 这里强制切换到项目根目录再启动。
+
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..\..')
+Set-Location $projectRoot
+
 Write-Host "=== 启动 Next.js 开发服务器（网络访问） ===" -ForegroundColor Cyan
 Write-Host ""
 

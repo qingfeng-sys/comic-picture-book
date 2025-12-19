@@ -1,18 +1,9 @@
 @echo off
-:: 检查管理员权限
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo 正在请求管理员权限...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
-    exit /b
-)
 
-:: 切换到脚本目录
+chcp 65001 >nul 2>&1
+
 cd /d "%~dp0"
 
-:: 运行 PowerShell 脚本
-echo 正在运行修复脚本...
-powershell -ExecutionPolicy Bypass -File ".\fix-network.ps1"
+call "tools\ps1\network\one-click-network-fix.bat"
 
-pause
 
