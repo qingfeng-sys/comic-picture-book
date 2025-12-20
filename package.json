@@ -14,6 +14,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@prisma/client": "^5.14.0",
+    "ali-oss": "^6.23.0",
     "axios": "^1.6.0",
     "bcryptjs": "^3.0.3",
     "jszip": "^3.10.1",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.1.2",
+    "@types/ali-oss": "^6.16.13",
     "@types/bcryptjs": "^2.4.6",
     "@types/jszip": "^3.4.1",
     "@types/node": "^20.0.0",

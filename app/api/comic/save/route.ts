@@ -3,8 +3,9 @@ import { z } from 'zod';
 import { saveImageToStorage } from '@/lib/imageStorage';
 import { validationError, maskServerError } from '@/lib/apiAuth';
 import { withApiProtection } from '@/lib/security/withApiProtection';
+import prisma from '@/lib/prisma';
 
-async function postHandler(request: NextRequest) {
+async function postHandler(request: NextRequest, session?: any) {
   try {
     const schema = z.object({
       imageUrl: z.string().min(1),
@@ -18,6 +19,20 @@ async function postHandler(request: NextRequest) {
     }
 
     const { imageUrl, pageNumber, scriptId, segmentId } = parseResult.data;
+
+    // Ownership check for scriptId
+    if (scriptId && scriptId !== 'unknown') {
+      const script = await prisma.script.findUnique({
+        where: { id: scriptId },
+        select: { userId: true }
+      });
+      if (script && script.userId !== session.user.id) {
+        return NextResponse.json(
+          { success: false, error: '无权访问此脚本' },
+          { status: 403 }
+        );
+      }
+    }
 
     const result = await saveImageToStorage(
       imageUrl,
@@ -35,4 +50,4 @@ async function postHandler(request: NextRequest) {
   }
 }
 
-export const POST = withApiProtection(postHandler, { requireApiKey: true });
+export const POST = withApiProtection(postHandler, { requireApiKey: true, requireSession: true });

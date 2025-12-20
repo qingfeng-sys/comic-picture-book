@@ -1,134 +1,206 @@
 import fs from 'fs/promises';
 import path from 'path';
+import OSS from 'ali-oss';
 
 /**
- * 确保存储目录存在
+ * 存储结果接口
  */
-export async function ensureStorageDir(): Promise<string> {
-  const storageDir = path.join(process.cwd(), 'public', 'comic-assets');
-  try {
-    await fs.access(storageDir);
-  } catch {
-    await fs.mkdir(storageDir, { recursive: true });
-  }
-  return storageDir;
+export interface StorageResult {
+  url: string;
+  fileName: string;
+  ossKey?: string;
+  expiresAt: string;
 }
 
 /**
- * 保存图片到存储目录
- * @param imageUrl 图片URL（可能是外部URL或base64）
- * @param pageNumber 页码
- * @param scriptId 脚本ID
- * @param segmentId 片段ID
- * @returns 保存后的本地URL、文件名和过期时间
+ * 存储适配器接口
+ */
+interface StorageAdapter {
+  saveImage(buffer: Buffer, fileName: string, metadata: any): Promise<StorageResult>;
+  cleanupExpired(): Promise<number>;
+}
+
+/**
+ * 本地存储适配器实现
+ */
+class LocalStorageAdapter implements StorageAdapter {
+  private storageDir = path.join(process.cwd(), 'public', 'comic-assets');
+
+  private async ensureDir() {
+    try {
+      await fs.access(this.storageDir);
+    } catch {
+      await fs.mkdir(this.storageDir, { recursive: true });
+    }
+  }
+
+  async saveImage(buffer: Buffer, fileName: string, metadata: any): Promise<StorageResult> {
+    await this.ensureDir();
+    const filePath = path.join(this.storageDir, fileName);
+    await fs.writeFile(filePath, buffer);
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const metaDataWithExpiry = {
+      ...metadata,
+      fileName,
+      expiresAt,
+    };
+
+    await fs.writeFile(`${filePath}.meta.json`, JSON.stringify(metaDataWithExpiry, null, 2));
+
+    return {
+      url: `/comic-assets/${fileName}`,
+      fileName,
+      expiresAt,
+    };
+  }
+
+  async cleanupExpired(): Promise<number> {
+    try {
+      await fs.access(this.storageDir);
+    } catch {
+      return 0;
+    }
+
+    const files = await fs.readdir(this.storageDir);
+    let deletedCount = 0;
+    const now = Date.now();
+
+    for (const file of files) {
+      if (file.endsWith('.meta.json')) {
+        const metadataPath = path.join(this.storageDir, file);
+        try {
+          const content = await fs.readFile(metadataPath, 'utf-8');
+          const meta = JSON.parse(content);
+          if (new Date(meta.expiresAt).getTime() < now) {
+            const imagePath = path.join(this.storageDir, meta.fileName);
+            await fs.unlink(imagePath).catch(() => {});
+            await fs.unlink(metadataPath).catch(() => {});
+            deletedCount++;
+          }
+        } catch {}
+      }
+    }
+    return deletedCount;
+  }
+}
+
+/**
+ * 阿里云 OSS 存储适配器实现
+ */
+class OssStorageAdapter implements StorageAdapter {
+  private client: OSS;
+  private bucket: string;
+
+  constructor() {
+    const region = process.env.OSS_REGION;
+    const accessKeyId = process.env.OSS_ACCESS_KEY_ID;
+    const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET;
+    this.bucket = process.env.OSS_BUCKET || '';
+
+    if (!region || !accessKeyId || !accessKeySecret || !this.bucket) {
+      throw new Error('OSS 配置缺失，请检查环境变量');
+    }
+
+    this.client = new OSS({
+      region,
+      accessKeyId,
+      accessKeySecret,
+      bucket: this.bucket,
+      secure: true,
+    });
+  }
+
+  async saveImage(buffer: Buffer, fileName: string, metadata: any): Promise<StorageResult> {
+    // 默认存储在 oss 的 comic-assets 目录下
+    const ossKey = `comic-assets/${fileName}`;
+    
+    const result = await this.client.put(ossKey, buffer, {
+      meta: metadata,
+      headers: {
+        'Cache-Control': 'max-age=31536000',
+      }
+    });
+
+    return {
+      url: result.url,
+      fileName,
+      ossKey,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // OSS 默认一年（或永不过期）
+    };
+  }
+
+  async cleanupExpired(): Promise<number> {
+    // OSS 通常不需要手动清理过期文件，可以配置生命周期规则
+    // 这里仅做日志记录或占位
+    console.log('[OSS] 建议在阿里云控制台配置生命周期规则 (Lifecycle) 来自动清理过期图片');
+    return 0;
+  }
+}
+
+/**
+ * 获取当前存储适配器
+ */
+function getStorageAdapter(): StorageAdapter {
+  if (process.env.STORAGE_TYPE === 'oss' || (process.env.OSS_ACCESS_KEY_ID && process.env.NODE_ENV === 'production')) {
+    try {
+      return new OssStorageAdapter();
+    } catch (e) {
+      console.warn('切换 OSS 失败，回退到本地存储:', (e as Error).message);
+      return new LocalStorageAdapter();
+    }
+  }
+  return new LocalStorageAdapter();
+}
+
+/**
+ * 统一导出方法
  */
 export async function saveImageToStorage(
   imageUrl: string,
   pageNumber: number,
   scriptId: string,
   segmentId: number
-): Promise<{ url: string; fileName: string; expiresAt: string }> {
+): Promise<StorageResult> {
   try {
     let imageBuffer: Buffer;
-    
-    // 处理base64图片
     if (imageUrl.startsWith('data:image')) {
       const base64Data = imageUrl.split(',')[1];
       imageBuffer = Buffer.from(base64Data, 'base64');
     } else {
-      // 从URL下载图片
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`下载图片失败: ${imageResponse.statusText}`);
-      }
-      const arrayBuffer = await imageResponse.arrayBuffer();
-      imageBuffer = Buffer.from(arrayBuffer);
+      const resp = await fetch(imageUrl);
+      if (!resp.ok) throw new Error(`下载图片失败: ${resp.statusText}`);
+      imageBuffer = Buffer.from(await resp.arrayBuffer());
     }
 
-    const storageDir = await ensureStorageDir();
-
-    // 生成文件名
+    const ext = imageUrl.includes('png') ? 'png' : 'jpg';
     const timestamp = Date.now();
-    const ext = imageUrl.includes('png') ? 'png' : imageUrl.includes('jpeg') || imageUrl.includes('jpg') ? 'jpg' : 'jpg';
-    const fileName = `${scriptId || 'unknown'}_${segmentId || '0'}_${pageNumber}_${timestamp}.${ext}`;
-    const filePath = path.join(storageDir, fileName);
+    const fileName = `${scriptId || 'unknown'}_${segmentId || 0}_${pageNumber}_${timestamp}.${ext}`;
 
-    // 保存图片文件
-    await fs.writeFile(filePath, imageBuffer);
-
-    // 创建元数据文件
     const metadata = {
-      fileName,
-      originalUrl: imageUrl,
+      originalUrl: imageUrl.startsWith('data:') ? 'base64' : imageUrl,
       pageNumber,
       scriptId,
       segmentId,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7天后过期
     };
-    const metadataPath = path.join(storageDir, `${fileName}.meta.json`);
-    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
 
-    // 返回公共URL
-    const publicUrl = `/comic-assets/${fileName}`;
-
-    return {
-      url: publicUrl,
-      fileName,
-      expiresAt: metadata.expiresAt,
-    };
+    const adapter = getStorageAdapter();
+    return await adapter.saveImage(imageBuffer, fileName, metadata);
   } catch (error) {
     console.error('保存图片失败:', error);
     throw error;
   }
 }
 
-/**
- * 清理过期的图片文件
- * @returns 删除的文件数量
- */
 export async function cleanupExpiredImages(): Promise<number> {
-  const storageDir = path.join(process.cwd(), 'public', 'comic-assets');
-  
-  try {
-    await fs.access(storageDir);
-  } catch {
-    return 0; // 目录不存在，无需清理
-  }
+  const adapter = getStorageAdapter();
+  return await adapter.cleanupExpired();
+}
 
-  const files = await fs.readdir(storageDir);
-  let deletedCount = 0;
-  const now = Date.now();
-
-  for (const file of files) {
-    if (file.endsWith('.meta.json')) {
-      const metadataPath = path.join(storageDir, file);
-      try {
-        const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-        const metadata = JSON.parse(metadataContent);
-
-        const expiresAt = new Date(metadata.expiresAt).getTime();
-        if (now > expiresAt) {
-          // 删除图片文件
-          const imagePath = path.join(storageDir, metadata.fileName);
-          try {
-            await fs.unlink(imagePath);
-            console.log(`已删除过期图片: ${metadata.fileName}`);
-          } catch (err: any) {
-            if (err.code !== 'ENOENT') {
-              console.warn(`删除图片文件失败: ${imagePath}`, err);
-            }
-          }
-
-          // 删除元数据文件
-          await fs.unlink(metadataPath);
-          deletedCount++;
-        }
-      } catch (err) {
-        console.warn(`处理元数据文件失败: ${file}`, err);
-      }
-    }
-  }
-
-  return deletedCount;
+// 导出确保目录存在的函数（仅本地存储需要，保留以向后兼容）
+export async function ensureStorageDir(): Promise<string> {
+  const dir = path.join(process.cwd(), 'public', 'comic-assets');
+  await fs.mkdir(dir, { recursive: true });
+  return dir;
 }

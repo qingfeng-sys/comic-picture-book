@@ -1,0 +1,42 @@
+{
+    # 全局配置
+    email {$ADMIN_EMAIL}
+}
+
+# 你的域名
+{$DOMAIN} {
+    # 反向代理到 app 服务的 3000 端口
+    reverse_proxy app:3000
+
+    # 压缩支持
+    encode gzip zstd
+
+    # 安全头
+    header {
+        # 禁用 FLoC 追踪
+        Permissions-Policy interest-cohort=()
+        # 严格传输安全
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # 跨向访问
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer-when-downgrade
+    }
+
+    # 静态资源缓存（Next.js 静态文件）
+    handle_path /_next/static/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy app:3000
+    }
+
+    # 资产文件缓存
+    handle_path /comic-assets/* {
+        header Cache-Control "public, max-age=604800"
+        reverse_proxy app:3000
+    }
+
+    log {
+        output file /data/access.log
+    }
+}
+

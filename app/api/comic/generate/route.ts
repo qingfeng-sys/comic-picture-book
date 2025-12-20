@@ -135,7 +135,8 @@ async function postHandler(request: NextRequest, session?: any) {
             );
             return {
               ...page,
-              imageUrl: saved.url, // 使用本地URL替换原始URL
+              imageUrl: saved.url, // 使用本地URL或OSS URL替换原始URL
+              ossKey: saved.ossKey, // 记录 OSS Key (如果有)
             };
           } catch (error) {
             console.error(`保存第${page.pageNumber}页图片失败:`, error);

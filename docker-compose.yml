@@ -1,16 +1,54 @@
 version: "3.9"
 
 services:
-  nextjs:
-    container_name: comic-picture-book
-    build: .
-    env_file:
-      - config/env.production.example
+  # 1. 数据库服务
+  db:
+    image: postgres:15-alpine
+    restart: always
     environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-mypassword}
+      - POSTGRES_DB=${DB_NAME:-comic_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Next.js 应用服务
+  app:
+    build: .
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-mypassword}@db:5432/${DB_NAME:-comic_db}?schema=public
       - NODE_ENV=production
-    ports:
-      - "3000:3000"
+      # 其他敏感密钥将通过外部 .env 文件或 ECS 环境变量注入
+    env_file:
+      - .env.prod
     volumes:
       - ./public/comic-assets:/app/public/comic-assets
-    restart: unless-stopped
+    # 应用内部端口 3000
 
+  # 3. 反向代理 (Caddy - 自动 HTTPS)
+  proxy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
