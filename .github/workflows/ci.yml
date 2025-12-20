@@ -51,15 +51,31 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/comic-picture-book:latest
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/comic-picture-book:latest
+            ghcr.io/${{ github.repository_owner }}/comic-picture-book:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
-            ENV_FILE=.env.production
+            NODE_ENV=production
 
   deploy:
     needs: docker
     runs-on: ubuntu-latest
-    if: ${{ false }} # 预留：启用后可通过 secrets 进行 SSH 部署
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Placeholder for deployment
-        run: echo "Add SSH deploy steps here (rsync/ssh/docker pull)"
+      - name: Deploy to ECS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ECS_SSH_HOST }}
+          username: ${{ secrets.ECS_SSH_USER }}
+          key: ${{ secrets.ECS_SSH_KEY }}
+          script: |
+            cd ${{ secrets.ECS_DEPLOY_PATH }}
+            # 拉取最新镜像
+            docker compose pull
+            # 重新启动服务
+            docker compose up -d
+            # 清理旧镜像（可选，节省空间）
+            docker image prune -f
 
