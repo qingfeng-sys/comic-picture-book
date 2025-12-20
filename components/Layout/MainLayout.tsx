@@ -2,21 +2,23 @@
 
 import { useState, useEffect } from 'react';
 import LoginModal from '@/components/Auth/LoginModal';
-import { getCurrentUser, isLoggedIn, logout, type User } from '@/lib/authUtils';
+import { useSession, signOut } from 'next-auth/react';
 
 interface MainLayoutProps {
   children: React.ReactNode;
   currentPage?: string;
   onNavigate?: (page: string) => void;
-  onUserChange?: (user: User | null) => void;
+  onUserChange?: (user: any | null) => void;
 }
 
 export default function MainLayout({ children, currentPage = 'home', onNavigate, onUserChange }: MainLayoutProps) {
+  const { data: session, status } = useSession();
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 移动端默认关闭
   const [isMobile, setIsMobile] = useState(false);
+
+  const currentUser = session?.user as any;
 
   useEffect(() => {
     // 检测是否为移动设备
@@ -32,29 +34,19 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
   }, []);
 
   useEffect(() => {
-    // 检查登录状态
-    const user = getCurrentUser();
-    setCurrentUser(user);
     if (onUserChange) {
-      onUserChange(user);
+      onUserChange(currentUser || null);
     }
-  }, [onUserChange]);
+  }, [currentUser, onUserChange]);
 
-  const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
+  const handleLoginSuccess = (user: any) => {
+    // signIn 已经在 LoginModal 中处理了，这里只需要关闭 Modal
     setShowLoginModal(false);
-    if (onUserChange) {
-      onUserChange(user);
-    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (confirm('确定要退出登录吗？')) {
-      logout();
-      setCurrentUser(null);
-      if (onUserChange) {
-        onUserChange(null);
-      }
+      await signOut({ redirect: false });
       if (onNavigate) {
         onNavigate('home');
       }

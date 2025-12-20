@@ -35,19 +35,28 @@ npm install
 
 ### 配置环境变量
 
-创建 `.env.local` 文件：
+创建 `.env.local` 文件并填入以下配置：
 ```env
-# DashScope（必需）- 用于故事大纲/剧本/分镜生成
+# --- 必需配置 ---
+# DashScope API Key (阿里云百炼)
 DASHSCOPE_API_KEY=your_dashscope_api_key_here
 
-# 七牛云API（必需）- 用于图像生成
+# 七牛云 API Key (qnaigc.com)
 QINIU_API_KEY=your_qiniu_api_key_here
-# 可选：启用调用前密钥校验
-# ENABLE_API_KEY_VERIFICATION=true
 
-# （可选）DashScope 文本生成超时（毫秒，72B/80B 模型建议适当加大）
-# DASHSCOPE_SCRIPT_TIMEOUT_MS=90000
-# DASHSCOPE_STORYBOARD_TIMEOUT_MS=120000
+# --- 安全与访问控制 (可选) ---
+# 是否启用 API 访问保护 (默认 false)
+ENABLE_API_KEY_VERIFICATION=false
+# API 访问密钥 (当启用校验时需在 Header 中携带 X-API-Key)
+API_SECURITY_TOKEN=your_security_token
+
+# --- 超时控制 (建议配置) ---
+# 全局默认超时
+DASHSCOPE_TIMEOUT_MS=60000
+# 针对不同阶段的细分超时（高峰期建议设为 90s-120s）
+DASHSCOPE_OUTLINE_TIMEOUT_MS=45000
+DASHSCOPE_SCRIPT_TIMEOUT_MS=90000
+DASHSCOPE_STORYBOARD_TIMEOUT_MS=120000
 ```
 
 ### 运行开发服务器
@@ -57,12 +66,12 @@ npm run dev
 
 访问 `http://localhost:3000`
 
-## ⚙️ 当前状态与限制
+## ⚙️ 当前状态与安全性
 
-- 本地/内网演示：用户与作品数据均存于浏览器 localStorage，未接入真实后端或数据库。
-- 图片存储在本地 `public/comic-assets/`，7天后通过 `/api/comic/cleanup` 清理；生产环境需替换为对象存储/CDN。
-- 密钥安全：七牛云调用封装位于 `lib/providers/qiniu/image.ts`；部署前必须通过环境变量提供自己的密钥并停用任何开发回退配置。
-- 尚未提供生产鉴权、限流、监控与部署脚本，发布前需补齐。
+- **安全性**: 已初步实现基于 `X-API-Key` 的接口保护、CORS 策略管理以及 API 速率限制（Rate Limiting）。
+- **图片存储**: 生成的图片暂存于本地 `public/comic-assets/`，并伴随自动清理机制（7天过期）。
+- **局域网支持**: 内置针对 Windows 的防火墙配置脚本，支持 0.0.0.0 监听，方便跨设备调试。
+- **一致性处理**: 通过布局指令（Layout Hint）和参考图辅助（Reference Images）解决了 AI 绘图中角色站位与长相不一致的问题。
 
 ## 📖 使用指南
 
@@ -82,9 +91,11 @@ npm run dev
 ## 🛠️ 技术栈
 
 - **框架**: Next.js 16 + React 18
-- **语言**: TypeScript 5.0
 - **样式**: Tailwind CSS 3.3
-- **AI服务**: DashScope 文本生成（故事大纲/剧本/分镜）、七牛云API/通义万相（图像生成，默认模型 gemini-2.5-flash-image）
+- **安全**: 自定义 API Protection + Rate Limiter
+- **AI 服务**: 
+  - **文本生成**: DashScope (通义千问系列 - 支持大纲/脚本/分镜三阶段 Pipeline)
+  - **图像生成**: 七牛云 API (Kling/Gemini 兼容模型) & 通义万相 (支持 i2i 参考图模式)
 
 ## 📚 文档
 

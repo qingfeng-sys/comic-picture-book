@@ -2,24 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { loadScriptsFromStorage, loadComicBooksFromStorage } from '@/lib/scriptUtils';
-import { getCurrentUser, logout, type User } from '@/lib/authUtils';
+import { useSession, signOut } from 'next-auth/react';
 
 interface PersonalCenterProps {
   onNavigate?: (page: string) => void;
 }
 
 export default function PersonalCenter({ onNavigate }: PersonalCenterProps) {
+  const { data: session } = useSession();
   const [savedScripts, setSavedScripts] = useState<any[]>([]);
   const [savedComicBooks, setSavedComicBooks] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  const currentUser = session?.user as any;
 
   useEffect(() => {
     const scripts = loadScriptsFromStorage();
     const comicBooks = loadComicBooksFromStorage();
     setSavedScripts(scripts);
     setSavedComicBooks(comicBooks);
-    const user = getCurrentUser();
-    setCurrentUser(user);
   }, []);
 
   const stats = {
@@ -34,14 +34,12 @@ export default function PersonalCenter({ onNavigate }: PersonalCenterProps) {
     { id: 'security', label: '账号安全', icon: '🔒', action: () => alert('账号安全功能开发中') },
     { id: 'language', label: '语言设置', icon: '🌐', action: () => alert('语言设置功能开发中') },
     { id: 'feedback', label: '意见反馈', icon: '💬', action: () => alert('意见反馈功能开发中') },
-    { id: 'logout', label: '退出登录', icon: '🚪', action: () => {
+    { id: 'logout', label: '退出登录', icon: '🚪', action: async () => {
       if (confirm('确定要退出登录吗？')) {
-        logout();
-        setCurrentUser(null);
+        await signOut({ redirect: false });
         if (onNavigate) {
           onNavigate('home');
         }
-        window.location.reload(); // 刷新页面以更新状态
       }
     } },
   ];

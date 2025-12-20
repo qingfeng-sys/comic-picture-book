@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import AuthProvider from '@/components/Providers/AuthProvider'
 import './globals.css'
 
 export default function RootLayout({
@@ -57,7 +58,9 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   )

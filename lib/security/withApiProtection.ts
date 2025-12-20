@@ -4,11 +4,14 @@ import { applyCors } from './corsHandler';
 import { checkApiKey } from './apiAuth';
 import { logger } from '@/lib/logger';
 import { handleApiError } from '@/app/api/_error';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
-type Handler = (request: NextRequest) => Promise<NextResponse> | NextResponse;
+type Handler = (request: NextRequest, session?: any) => Promise<NextResponse> | NextResponse;
 
 export interface ProtectionOptions {
   requireApiKey?: boolean;
+  requireSession?: boolean;
 }
 
 export function withApiProtection(handler: Handler, options?: ProtectionOptions) {
@@ -32,8 +35,21 @@ export function withApiProtection(handler: Handler, options?: ProtectionOptions)
       if (unauthorized) return applyCors(request, unauthorized);
     }
 
+    // Session
+    let session = null;
+    if (options?.requireSession) {
+      session = await getServerSession(authOptions);
+      if (!session) {
+        const res = NextResponse.json(
+          { success: false, error: '未授权，请先登录' },
+          { status: 401 }
+        );
+        return applyCors(request, res);
+      }
+    }
+
     try {
-      const response = await handler(request);
+      const response = await handler(request, session);
       const res = response instanceof NextResponse ? response : NextResponse.json(response);
       applyCors(request, res);
       const cost = Date.now() - started;
@@ -48,6 +64,7 @@ export function withApiProtection(handler: Handler, options?: ProtectionOptions)
           ip,
           contentLength,
           durationMs: cost,
+          userId: session?.user?.id || 'anonymous'
         },
         'api_request'
       );

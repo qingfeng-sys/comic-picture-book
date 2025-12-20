@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  username      String      @unique
+  password      String      // 存储哈希后的密码
+  nickname      String?
+  avatar        String?
+  isVip         Boolean     @default(false)
+  scripts       Script[]    // 用户创建的脚本
+  comicBooks    ComicBook[] // 用户生成的绘本
+  characters    Character[] // 用户保存的角色立绘库
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("users")
+}
+
+model Character {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  role         String?  // 角色定位：主角、配角等
+  description  String?  @db.Text
+  visual       String?  // 视觉特征描述
+  imageUrl     String?  // 角色参考图 URL (OSS 地址)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@map("characters")
+}
+
+model Script {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  content    String      @db.Text
+  storyboard Json?       // 存储结构化的分镜数据 (StoryboardData)
+  comicBooks ComicBook[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@map("scripts")
+}
+
+model ComicBook {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scriptId   String
+  script     Script      @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  title      String
+  pages      ComicPage[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@map("comic_books")
+}
+
+model ComicPage {
+  id          String    @id @default(cuid())
+  comicBookId String
+  comicBook   ComicBook @relation(fields: [comicBookId], references: [id], onDelete: Cascade)
+  pageNumber  Int
+  imageUrl    String    // 图像 URL (生产环境为 OSS URL)
+  ossKey      String?   // OSS 对象键名，用于后续管理/删除
+  dialogue    Json?     // 页面包含的对话数组
+  narration   String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  @@map("comic_pages")
+}
+
+model ApiLog {
+  id           String   @id @default(cuid())
+  userId       String?
+  endpoint     String
+  method       String
+  statusCode   Int
+  duration     Int      // 耗时 (ms)
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@map("api_logs")
+}
+

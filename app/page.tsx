@@ -8,19 +8,22 @@ import PersonalCenter from '@/components/PersonalCenter/PersonalCenter';
 import MainLayout from '@/components/Layout/MainLayout';
 import CharacterLibrary from '@/components/CharacterLibrary/CharacterLibrary';
 import { saveScriptToStorage, loadScriptsFromStorage, loadComicBooksFromStorage, deleteComicBookFromStorage, saveComicBookToStorage } from '@/lib/scriptUtils';
-import { isLoggedIn, getCurrentUser, type User } from '@/lib/authUtils';
+import { useSession } from 'next-auth/react';
 import { Script, ComicBook } from '@/types';
 
 type ViewMode = 'home' | 'script' | 'comic' | 'edit' | 'library' | 'ai-create' | 'my-works' | 'characters' | 'view-comic' | 'personal';
 
 export default function Home() {
+  const { data: session, status } = useSession();
   const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [savedScripts, setSavedScripts] = useState<Script[]>([]);
   const [savedComicBooks, setSavedComicBooks] = useState<ComicBook[]>([]);
   const [editingScript, setEditingScript] = useState<Script | null>(null);
   const [viewingComicBook, setViewingComicBook] = useState<ComicBook | null>(null);
   const [isGenerating, setIsGenerating] = useState(false); // 添加生成状态锁
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const isLoggedIn = status === 'authenticated';
 
   useEffect(() => {
     if (viewMode === 'home' || viewMode === 'my-works') {
@@ -37,10 +40,16 @@ export default function Home() {
     setSavedScripts(scripts);
     const comicBooks = loadComicBooksFromStorage();
     setSavedComicBooks(comicBooks);
-    // 检查登录状态
-    const user = getCurrentUser();
-    setCurrentUser(user);
   }, []);
+
+  // 更新当前用户信息
+  useEffect(() => {
+    if (session?.user) {
+      setCurrentUser(session.user);
+    } else {
+      setCurrentUser(null);
+    }
+  }, [session]);
 
   // 防止页面刷新导致状态丢失 - 从 sessionStorage 恢复 viewMode
   useEffect(() => {
@@ -143,7 +152,7 @@ export default function Home() {
 
   if (viewMode === 'script' || viewMode === 'edit') {
     // 检查登录状态
-    if (!isLoggedIn()) {
+    if (!isLoggedIn) {
       return (
         <MainLayout currentPage="script" onNavigate={handleNavigation} onUserChange={setCurrentUser}>
           <div className="max-w-2xl mx-auto text-center py-12">
@@ -188,7 +197,7 @@ export default function Home() {
 
   if (viewMode === 'comic') {
     // 检查登录状态
-    if (!isLoggedIn()) {
+    if (!isLoggedIn) {
       return (
         <MainLayout currentPage="comic" onNavigate={handleNavigation} onUserChange={setCurrentUser}>
           <div className="max-w-2xl mx-auto text-center py-12">
@@ -233,7 +242,7 @@ export default function Home() {
             const comicBooks = loadComicBooksFromStorage();
             setSavedComicBooks(comicBooks);
           }}
-          isLoggedIn={isLoggedIn()}
+          isLoggedIn={isLoggedIn}
         />
       </MainLayout>
     );
@@ -457,7 +466,7 @@ export default function Home() {
                         </button>
                         <button
                           onClick={async () => {
-                            if (!isLoggedIn()) {
+                            if (!isLoggedIn) {
                               alert('下载功能需要登录后才能使用，请先登录。');
                               return;
                             }
@@ -550,7 +559,7 @@ export default function Home() {
           <div 
             className="relative group rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 cursor-pointer overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl min-h-[200px] sm:min-h-[250px]"
             onClick={() => {
-              if (!isLoggedIn()) {
+              if (!isLoggedIn) {
                 alert('脚本生成功能需要登录后才能使用，请先登录或注册账号。');
                 return;
               }
@@ -584,7 +593,7 @@ export default function Home() {
           <div 
             className="relative group rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 cursor-pointer overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl min-h-[200px] sm:min-h-[250px]"
             onClick={() => {
-              if (!isLoggedIn()) {
+              if (!isLoggedIn) {
                 alert('绘本生成功能需要登录后才能使用，请先登录或注册账号。');
                 return;
               }

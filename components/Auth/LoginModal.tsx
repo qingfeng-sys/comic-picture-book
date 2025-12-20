@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { login, register, saveUser, type User } from '@/lib/authUtils';
+import { signIn } from 'next-auth/react';
+import { type User } from '@/lib/authUtils'; // 暂时保留类型引用
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: User) => void;
+  onLoginSuccess: (user: any) => void;
 }
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
@@ -25,9 +26,18 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     try {
       if (isLoginMode) {
         // 登录
-        const user = login(username, password);
-        onLoginSuccess(user);
-        handleClose();
+        const result = await signIn('credentials', {
+          redirect: false,
+          username,
+          password,
+        });
+
+        if (result?.error) {
+          setError(result.error);
+        } else {
+          onLoginSuccess({ username }); // 触发成功回调
+          handleClose();
+        }
       } else {
         // 注册
         if (!nickname.trim()) {
@@ -35,13 +45,35 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           setIsLoading(false);
           return;
         }
-        const user = register(username, password, nickname);
-        saveUser(user);
-        onLoginSuccess(user);
-        handleClose();
+
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, nickname }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          // 注册成功后直接登录
+          const loginResult = await signIn('credentials', {
+            redirect: false,
+            username,
+            password,
+          });
+
+          if (loginResult?.error) {
+            setError(loginResult.error);
+          } else {
+            onLoginSuccess(data.data);
+            handleClose();
+          }
+        } else {
+          setError(data.error || '注册失败');
+        }
       }
     } catch (err: any) {
-      setError(err.message || '操作失败，请重试');
+      setError('操作失败，请重试');
     } finally {
       setIsLoading(false);
     }
