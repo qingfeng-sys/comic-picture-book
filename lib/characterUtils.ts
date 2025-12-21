@@ -1,37 +1,62 @@
 import type { CharacterProfile } from '@/types';
 
-const STORAGE_KEY = 'comic_characters';
-
-export function loadCharactersFromStorage(): CharacterProfile[] {
-  if (typeof window === 'undefined') return [];
+/**
+ * 从数据库加载角色
+ */
+export async function loadCharactersFromStorage(): Promise<CharacterProfile[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CharacterProfile[]) : [];
+    const resp = await fetch('/api/character');
+    if (!resp.ok) return [];
+    const result = await resp.json();
+    return (result.success && Array.isArray(result.data)) ? result.data : [];
   } catch (e) {
     console.error('加载角色库失败:', e);
     return [];
   }
 }
 
-export function saveCharactersToStorage(characters: CharacterProfile[]): void {
-  if (typeof window === 'undefined') return;
+/**
+ * 保存/更新角色到数据库
+ */
+export async function upsertCharacter(character: CharacterProfile): Promise<CharacterProfile | null> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(characters));
+    const resp = await fetch('/api/character', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: character.id,
+        name: character.name,
+        role: character.role,
+        description: character.description,
+        visual: character.visual,
+        imageUrl: character.referenceImageUrl,
+        // 新增字段
+        sourceType: character.sourceType,
+        sourceScriptId: character.sourceScriptId,
+        sourceScriptTitle: character.sourceScriptTitle,
+        matchNames: character.matchNames,
+      }),
+    });
+    if (!resp.ok) return null;
+    const result = await resp.json();
+    return result.success ? result.data : null;
   } catch (e) {
-    console.error('保存角色库失败:', e);
+    console.error('保存角色失败:', e);
+    return null;
   }
 }
 
-export function upsertCharacter(character: CharacterProfile): void {
-  const list = loadCharactersFromStorage();
-  const idx = list.findIndex(c => c.id === character.id);
-  const next = idx >= 0 ? [...list.slice(0, idx), character, ...list.slice(idx + 1)] : [character, ...list];
-  saveCharactersToStorage(next);
+/**
+ * 删除角色
+ */
+export async function deleteCharacter(characterId: string): Promise<boolean> {
+  try {
+    const resp = await fetch(`/api/character?id=${characterId}`, { method: 'DELETE' });
+    if (!resp.ok) return false;
+    const result = await resp.json();
+    return result.success;
+  } catch (e) {
+    console.error('删除角色失败:', e);
+    return false;
+  }
 }
-
-export function deleteCharacter(characterId: string): void {
-  const list = loadCharactersFromStorage();
-  saveCharactersToStorage(list.filter(c => c.id !== characterId));
-}
-
-

@@ -35,15 +35,27 @@ export default function CharacterLibrary() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    setCharacters(loadCharactersFromStorage());
-    setScripts(loadScriptsFromStorage());
+    const fetchData = async () => {
+      const chars = await loadCharactersFromStorage();
+      const s = await loadScriptsFromStorage();
+      setCharacters(chars);
+      setScripts(s);
+    };
+    fetchData();
   }, []);
 
+  const refreshCharacters = async () => {
+    const chars = await loadCharactersFromStorage();
+    setCharacters(chars);
+  };
+
   const sortedAll = useMemo(() => {
+    if (!Array.isArray(characters)) return [];
     return [...characters].sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt));
   }, [characters]);
 
   const customCharacters = useMemo(() => {
+    if (!Array.isArray(sortedAll)) return [];
     return sortedAll.filter((c) => c.sourceType === 'custom');
   }, [sortedAll]);
 
@@ -112,6 +124,7 @@ export default function CharacterLibrary() {
   }, [scripts, sortedAll]);
 
   const uncategorized = useMemo(() => {
+    if (!Array.isArray(sortedAll) || !Array.isArray(scripts)) return [];
     const scriptRoleSets = scripts.map((s) => extractRoleNamesFromScriptContent(s.content));
     return sortedAll.filter((c) => {
       if (c.sourceType === 'custom') return false;
@@ -157,8 +170,8 @@ export default function CharacterLibrary() {
         createdAt: now,
         updatedAt: now,
       };
-      upsertCharacter(profile);
-      setCharacters(loadCharactersFromStorage());
+      await upsertCharacter(profile);
+      await refreshCharacters();
       setView('groups');
 
       // reset
@@ -174,23 +187,27 @@ export default function CharacterLibrary() {
     }
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm('确定要删除这个角色吗？')) return;
-    deleteCharacter(id);
-    setCharacters(loadCharactersFromStorage());
+    const success = await deleteCharacter(id);
+    if (success) {
+      await refreshCharacters();
+    } else {
+      alert('删除失败');
+    }
   }
 
-  function handleUpdateMatchNames(c: CharacterProfile, raw: string) {
+  async function handleUpdateMatchNames(c: CharacterProfile, raw: string) {
     const next: CharacterProfile = {
       ...c,
       matchNames: parseMatchNames(raw, c.name),
       updatedAt: new Date().toISOString(),
     };
-    upsertCharacter(next);
-    setCharacters(loadCharactersFromStorage());
+    await upsertCharacter(next);
+    await refreshCharacters();
   }
 
-  function handleMoveCharacter(c: CharacterProfile, target: string) {
+  async function handleMoveCharacter(c: CharacterProfile, target: string) {
     // target: "custom" or scriptId
     const now = new Date().toISOString();
     if (target === 'custom') {
@@ -201,8 +218,8 @@ export default function CharacterLibrary() {
         sourceScriptTitle: undefined,
         updatedAt: now,
       };
-      upsertCharacter(next);
-      setCharacters(loadCharactersFromStorage());
+      await upsertCharacter(next);
+      await refreshCharacters();
       return;
     }
 
@@ -214,8 +231,8 @@ export default function CharacterLibrary() {
       sourceScriptTitle: script?.title || c.sourceScriptTitle || `脚本（${target}）`,
       updatedAt: now,
     };
-    upsertCharacter(next);
-    setCharacters(loadCharactersFromStorage());
+    await upsertCharacter(next);
+    await refreshCharacters();
   }
 
   return (

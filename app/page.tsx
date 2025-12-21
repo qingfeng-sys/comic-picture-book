@@ -26,20 +26,26 @@ export default function Home() {
   const isLoggedIn = status === 'authenticated';
 
   useEffect(() => {
-    if (viewMode === 'home' || viewMode === 'my-works') {
-      const scripts = loadScriptsFromStorage();
-      setSavedScripts(scripts);
-      const comicBooks = loadComicBooksFromStorage();
-      setSavedComicBooks(comicBooks);
-    }
+    const fetchData = async () => {
+      if (viewMode === 'home' || viewMode === 'my-works') {
+        const scripts = await loadScriptsFromStorage();
+        setSavedScripts(scripts);
+        const comicBooks = await loadComicBooksFromStorage();
+        setSavedComicBooks(comicBooks);
+      }
+    };
+    fetchData();
   }, [viewMode]);
 
   // 首页也需要加载数据
   useEffect(() => {
-    const scripts = loadScriptsFromStorage();
-    setSavedScripts(scripts);
-    const comicBooks = loadComicBooksFromStorage();
-    setSavedComicBooks(comicBooks);
+    const fetchData = async () => {
+      const scripts = await loadScriptsFromStorage();
+      setSavedScripts(scripts);
+      const comicBooks = await loadComicBooksFromStorage();
+      setSavedComicBooks(comicBooks);
+    };
+    fetchData();
   }, []);
 
   // 更新当前用户信息
@@ -68,28 +74,17 @@ export default function Home() {
     }
   }, [viewMode]);
 
-  const handleScriptComplete = (script: string, title: string, scriptId?: string) => {
+  const handleScriptComplete = async (script: string, title: string, scriptId?: string) => {
     // 保存脚本
-    const now = new Date().toISOString();
-    const scriptData: Script = scriptId 
-      ? {
-          id: scriptId,
-          title,
-          content: script,
-          createdAt: editingScript?.createdAt || now,
-          updatedAt: now,
-        }
-      : {
-          id: `script_${Date.now()}`,
-          title,
-          content: script,
-          createdAt: now,
-          updatedAt: now,
-        };
-    saveScriptToStorage(scriptData);
+    const scriptData: Partial<Script> = {
+      id: scriptId,
+      title,
+      content: script,
+    };
+    await saveScriptToStorage(scriptData);
     
     // 更新本地状态
-    const scripts = loadScriptsFromStorage();
+    const scripts = await loadScriptsFromStorage();
     setSavedScripts(scripts);
     
     alert('脚本已保存！');
@@ -103,12 +98,15 @@ export default function Home() {
     setViewMode('edit');
   };
 
-  const handleDeleteScript = (scriptId: string) => {
+  const handleDeleteScript = async (scriptId: string) => {
     if (confirm('确定要删除这个脚本吗？')) {
-      const scripts = loadScriptsFromStorage();
-      const filtered = scripts.filter(s => s.id !== scriptId);
-      localStorage.setItem('comic_scripts', JSON.stringify(filtered));
-      setSavedScripts(filtered);
+      const success = await deleteScriptFromStorage(scriptId);
+      if (success) {
+        const scripts = await loadScriptsFromStorage();
+        setSavedScripts(scripts);
+      } else {
+        alert('删除失败');
+      }
     }
   };
 
@@ -142,11 +140,15 @@ export default function Home() {
     }
   };
 
-  const handleDeleteComicBook = (comicBookId: string) => {
+  const handleDeleteComicBook = async (comicBookId: string) => {
     if (confirm('确定要删除这个绘本吗？')) {
-      deleteComicBookFromStorage(comicBookId);
-      const comicBooks = loadComicBooksFromStorage();
-      setSavedComicBooks(comicBooks);
+      const success = await deleteComicBookFromStorage(comicBookId);
+      if (success) {
+        const comicBooks = await loadComicBooksFromStorage();
+        setSavedComicBooks(comicBooks);
+      } else {
+        alert('删除失败');
+      }
     }
   };
 
@@ -237,9 +239,9 @@ export default function Home() {
             setViewingComicBook(null);
             setViewMode('my-works');
           }}
-          onComicBookUpdate={(updatedComicBook) => {
+          onComicBookUpdate={async (updatedComicBook) => {
             setViewingComicBook(updatedComicBook);
-            const comicBooks = loadComicBooksFromStorage();
+            const comicBooks = await loadComicBooksFromStorage();
             setSavedComicBooks(comicBooks);
           }}
           isLoggedIn={isLoggedIn}
@@ -350,16 +352,14 @@ export default function Home() {
                     </p>
                     <div className="text-xs text-gray-400 flex justify-between">
                       <span>创建：{new Date(script.createdAt).toLocaleDateString()}</span>
-                      <button
-                        onClick={() => {
-                          handleDeleteScript(script.id);
-                          const scripts = loadScriptsFromStorage();
-                          setSavedScripts(scripts);
-                        }}
-                        className="text-red-500 hover:text-red-600"
-                      >
-                        删除
-                      </button>
+                        <button
+                          onClick={async () => {
+                            await handleDeleteScript(script.id);
+                          }}
+                          className="text-red-500 hover:text-red-600"
+                        >
+                          删除
+                        </button>
                     </div>
                   </div>
                 ))}
@@ -421,7 +421,7 @@ export default function Home() {
                         </h3>
                         <div className="flex gap-1 ml-2">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               const newTitle = prompt('请输入新的绘本名称:', comicBook.title || script?.title || '');
                               if (newTitle !== null && newTitle.trim()) {
                                 const updatedComicBook = {
@@ -429,8 +429,8 @@ export default function Home() {
                                   title: newTitle.trim(),
                                   updatedAt: new Date().toISOString(),
                                 };
-                                saveComicBookToStorage(updatedComicBook);
-                                const comicBooks = loadComicBooksFromStorage();
+                                await saveComicBookToStorage(updatedComicBook);
+                                const comicBooks = await loadComicBooksFromStorage();
                                 setSavedComicBooks(comicBooks);
                               }
                             }}

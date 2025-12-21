@@ -16,10 +16,13 @@ export default function PersonalCenter({ onNavigate }: PersonalCenterProps) {
   const currentUser = session?.user as any;
 
   useEffect(() => {
-    const scripts = loadScriptsFromStorage();
-    const comicBooks = loadComicBooksFromStorage();
-    setSavedScripts(scripts);
-    setSavedComicBooks(comicBooks);
+    const fetchData = async () => {
+      const scripts = await loadScriptsFromStorage();
+      const comicBooks = await loadComicBooksFromStorage();
+      setSavedScripts(scripts);
+      setSavedComicBooks(comicBooks);
+    };
+    fetchData();
   }, []);
 
   const stats = {

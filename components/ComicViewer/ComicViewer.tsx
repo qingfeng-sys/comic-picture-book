@@ -131,7 +131,7 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
                 📖 {currentComicBook.title || '绘本查看'}
               </h2>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const newTitle = prompt('请输入新的绘本名称:', currentComicBook.title || '');
                   if (newTitle !== null && newTitle.trim()) {
                     const updatedComicBook = {
@@ -139,7 +139,7 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
                       title: newTitle.trim(),
                       updatedAt: new Date().toISOString(),
                     };
-                    saveComicBookToStorage(updatedComicBook);
+                    await saveComicBookToStorage(updatedComicBook);
                     setCurrentComicBook(updatedComicBook);
                     if (onComicBookUpdate) {
                       onComicBookUpdate(updatedComicBook);

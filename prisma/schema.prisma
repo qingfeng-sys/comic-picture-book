@@ -35,6 +35,13 @@ model Character {
   description  String?  @db.Text
   visual       String?  // 视觉特征描述
   imageUrl     String?  // 角色参考图 URL (OSS 地址)
+  
+  // 扩展字段，用于前端分组和匹配
+  sourceType        String   @default("custom") // "custom" 或 "script"
+  sourceScriptId    String?
+  sourceScriptTitle String?
+  matchNames        String[] // 匹配名数组
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

@@ -8,7 +8,7 @@ import { generateOutline } from '@/lib/storyGenerator';
 import type { CharacterProfile, GenerationModel } from '@/types';
 import { generateImageWithWan, isWanGenerationModel } from '@/lib/providers/dashscope/image';
 
-async function postHandler(request: NextRequest) {
+async function postHandler(request: NextRequest, session: any) {
   try {
     const schema = z.object({
       prompt: z.string().min(1),
@@ -86,6 +86,6 @@ async function postHandler(request: NextRequest) {
   }
 }
 
-export const POST = withApiProtection(postHandler, { requireApiKey: true });
+export const POST = withApiProtection(postHandler, { requireSession: true });
 
 

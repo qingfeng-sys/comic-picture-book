@@ -87,48 +87,58 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
 
   // 选中脚本后：只显示该脚本涉及的角色（按 name/matchNames 匹配分镜 role）
   const visibleCharacters = useMemo(() => {
+    if (!Array.isArray(characters)) return [];
     // 未选脚本：展示全量角色库
     if (!scriptRoleNames || scriptRoleNames.size === 0) return characters;
 
     const extraSet = new Set(extraVisibleCharacterIds);
     return characters.filter((c) => {
+      // 1. 优先包含显式标记为该脚本来源的角色
+      if (c.sourceScriptId === selectedScript?.id) return true;
+      // 2. 包含手动选中的角色
       if (extraSet.has(c.id)) return true;
+      // 3. 包含名字匹配脚本角色的角色
       const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
       return keys.some((k) => scriptRoleNames.has(String(k || '').trim()));
     });
-  }, [characters, scriptRoleNames, extraVisibleCharacterIds]);
+  }, [characters, scriptRoleNames, extraVisibleCharacterIds, selectedScript?.id]);
 
   useEffect(() => {
-    const scripts = loadScriptsFromStorage();
-    // 最新脚本排在最前：优先按 updatedAt，其次 createdAt（降序）
-    const sorted = [...scripts].sort((a, b) => {
-      const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
-      const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
-      return tb - ta;
-    });
-    setSavedScripts(sorted);
-    const chars = loadCharactersFromStorage();
-    setCharacters(chars);
-    // 默认全自动：自动选中所有已生成立绘的角色（用户无需手动勾选）
-    setSelectedCharacterIds(chars.filter(c => !!c.referenceImageUrl).map(c => c.id));
+    const fetchData = async () => {
+      const scripts = await loadScriptsFromStorage();
+      // 最新脚本排在最前：优先按 updatedAt，其次 createdAt（降序）
+      const sorted = [...scripts].sort((a, b) => {
+        const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return tb - ta;
+      });
+      setSavedScripts(sorted);
+      const chars = await loadCharactersFromStorage();
+      setCharacters(Array.isArray(chars) ? chars : []);
+      // 默认全自动：自动选中所有已生成立绘的角色（用户无需手动勾选）
+      if (Array.isArray(chars)) {
+        setSelectedCharacterIds(chars.filter(c => !!c.referenceImageUrl).map(c => c.id));
+      }
+    };
+    fetchData();
   }, []);
 
-  const refreshCharacters = () => {
-    const chars = loadCharactersFromStorage();
+  const refreshCharacters = async () => {
+    const chars = await loadCharactersFromStorage();
     setCharacters(chars);
     // selectedCharacterIds 由“选中脚本后的自动筛选”逻辑接管（避免混入历史脚本的角色）
   };
 
   // 选中脚本后，自动勾选该脚本涉及且已生成立绘的角色
   useEffect(() => {
-    if (!selectedScript) return;
+    if (!selectedScript || !Array.isArray(visibleCharacters)) return;
     const ids = visibleCharacters.filter((c) => !!c.referenceImageUrl).map((c) => c.id);
     if (!userTouchedCharacterSelection) {
       setSelectedCharacterIds(ids);
     }
   }, [selectedScript?.id, visibleCharacters, userTouchedCharacterSelection]);
 
-  const characterReferences = useCharacterReferences
+  const characterReferences = useCharacterReferences && Array.isArray(visibleCharacters)
     ? buildCharacterReferenceMap(visibleCharacters.filter(c => selectedCharacterIds.includes(c.id)))
     : undefined;
 
@@ -177,16 +187,16 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
       }
       const chars: CharacterProfile[] = json.data.characters;
       // 将本次“目标脚本”的信息写入角色库，便于角色库按脚本分组展示
-      chars.forEach((c) =>
-        upsertCharacter({
+      for (const c of chars) {
+        await upsertCharacter({
           ...c,
           sourceType: 'script',
           sourceScriptId: selectedScript.id,
           sourceScriptTitle: selectedScript.title,
           updatedAt: new Date().toISOString(),
-        })
-      );
-      refreshCharacters();
+        });
+      }
+      await refreshCharacters();
       alert(`角色立绘生成完成：${chars.filter((c) => !!c.referenceImageUrl).length}/${chars.length}`);
     } catch (e) {
       console.error(e);
@@ -352,19 +362,15 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
         const pages = result.data.pages;
         setGeneratedPages(pages);
         
-        // 保存生成的绘本到本地存储
-        const now = new Date().toISOString();
-        const comicBook: ComicBook = {
-          id: `comic_${Date.now()}`,
+        // 保存生成的绘本到数据库
+        const comicBook = {
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
           title: selectedScript.title, // 默认使用脚本标题
           pages: pages,
-          createdAt: now,
-          updatedAt: now,
         };
-        saveComicBookToStorage(comicBook);
-        console.log('绘本已保存到本地存储:', comicBook.id);
+        await saveComicBookToStorage(comicBook);
+        console.log('绘本已保存到数据库');
       } else {
         alert(result.error || '生成失败');
       }
