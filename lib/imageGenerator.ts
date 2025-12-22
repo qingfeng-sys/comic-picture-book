@@ -570,9 +570,9 @@ function buildLayoutHintFromDialogues(dialogues: DialogueItem[]): string {
     const ay = ys.length > 0 ? avg(ys) : 0.4;
     parts.push(`${role}在${posName(ax, ay)}`);
   }
-  // 强约束：避免角色换位/镜像；并要求给气泡留出空白区域
-  parts.push('保持人物站位与对白气泡位置一致，禁止左右镜像翻转或互换角色位置');
-  parts.push('为对白气泡预留空白，不要让人物头部被气泡遮挡');
+  // 强约束：避免角色换位/镜像；并要求严禁在画面中自带文字/气泡
+  parts.push('保持人物站位，禁止左右镜像翻转或互换角色位置');
+  parts.push('严禁在画面中绘制任何对白气泡、对话框、文字、标题或边框，保持纯净背景图，后期将由程序叠加文字');
   return parts.join('，');
 }
 

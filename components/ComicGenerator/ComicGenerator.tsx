@@ -83,9 +83,10 @@ const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
 
 interface ComicGeneratorProps {
   onBack: () => void;
+  initialScriptId?: string | null;
 }
 
-export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
+export default function ComicGenerator({ onBack, initialScriptId }: ComicGeneratorProps) {
   const [savedScripts, setSavedScripts] = useState<Script[]>([]);
   const [selectedScript, setSelectedScript] = useState<ScriptWithSegments | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
@@ -139,6 +140,21 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
         return tb - ta;
       });
       setSavedScripts(sorted);
+
+      // 如果传入了 initialScriptId，自动选中该脚本
+      if (initialScriptId) {
+        const script = sorted.find(s => s.id === initialScriptId);
+        if (script) {
+          const segments = splitScriptIntoSegments(script.content);
+          const scriptWithSegments: ScriptWithSegments = {
+            ...script,
+            segments,
+            totalSegments: segments.length,
+          };
+          setSelectedScript(scriptWithSegments);
+        }
+      }
+
       const chars = await loadCharactersFromStorage();
       setCharacters(Array.isArray(chars) ? chars : []);
       // 默认全自动：自动选中所有已生成立绘的角色（用户无需手动勾选）
@@ -147,7 +163,7 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
       }
     };
     fetchData();
-  }, []);
+  }, [initialScriptId]);
 
   const refreshCharacters = async () => {
     const chars = await loadCharactersFromStorage();

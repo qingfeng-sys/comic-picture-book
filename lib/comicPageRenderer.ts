@@ -124,11 +124,24 @@ function drawDialogueBubblesNew(
     bubbleY = adjusted.bubbleY;
 
     // 气泡
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#000000';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.lineWidth = borderWidth;
+    
+    // 添加气泡阴影
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+
     drawRoundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
     ctx.fill();
+    
+    // 重置阴影再画边框
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     ctx.stroke();
 
     // 文本
@@ -239,11 +252,18 @@ function drawDialogueBubblesOld(
     let bubbleY = (canvasHeight / (dialogues.length + 1)) * (idx + 1) - bubbleHeight / 2;
     bubbleY = Math.max(bubbleMargin, Math.min(canvasHeight - bubbleHeight - bubbleMargin - 80, bubbleY));
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#000000';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.lineWidth = borderWidth;
+    
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    ctx.shadowBlur = 10;
+
     drawRoundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
     ctx.fill();
+    
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
     ctx.stroke();
 
     ctx.fillStyle = '#000000';
@@ -284,15 +304,15 @@ function drawNarration(
   const bubbleX = (canvasWidth - bubbleWidth) / 2;
   const bubbleY = canvasHeight - bubbleHeight - margin;
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.strokeStyle = '#666666';
-  ctx.lineWidth = 1.5;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // 深色半透明
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; // 浅色边框
+  ctx.lineWidth = 1;
 
   drawRoundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = '#333333';
+  ctx.fillStyle = '#FFFFFF'; // 白色文字
   ctx.textAlign = 'center';
   const textX = bubbleX + bubbleWidth / 2;
   const textY = bubbleY + padding + textHeight / 2;
@@ -333,8 +353,8 @@ function drawSpeechTail(
   isLeft: boolean,
   borderWidth: number = 2
 ) {
-  ctx.fillStyle = '#FFFFFF';
-  ctx.strokeStyle = '#000000';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
   ctx.lineWidth = borderWidth;
 
   ctx.beginPath();

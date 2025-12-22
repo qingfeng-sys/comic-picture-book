@@ -191,12 +191,24 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
       bubbleY = adjusted.bubbleY;
 
       // 绘制气泡背景
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#000000';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)'; // 更大胆的透明度
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)'; // 稍浅的边框
       ctx.lineWidth = borderWidth;
+
+      // 添加气泡阴影，增加层次感
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
 
       drawRoundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
       ctx.fill();
+      
+      // 重置阴影再画边框，避免边框重叠阴影
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
       ctx.stroke();
 
       // 绘制文本（居中显示）
@@ -329,11 +341,18 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
       bubbleY = Math.max(bubbleMargin, Math.min(canvasHeight - bubbleHeight - bubbleMargin - 80, bubbleY));
 
       // 绘制气泡
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#000000';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
       ctx.lineWidth = borderWidth;
+      
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+      ctx.shadowBlur = 10;
+      
       drawRoundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
       ctx.fill();
+      
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
       ctx.stroke();
 
       // 绘制文本
@@ -384,9 +403,9 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
     const bubbleY = canvasHeight - bubbleHeight - margin; // 底部，留出margin空间
 
     // 绘制半透明背景（漫画风格的旁白框）
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.strokeStyle = '#666666';
-    ctx.lineWidth = 1.5;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // 改为深色半透明
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; // 浅色边框
+    ctx.lineWidth = 1;
 
     // 绘制圆角矩形
     drawRoundedRect(ctx, bubbleX, bubbleY, bubbleWidth, bubbleHeight, borderRadius);
@@ -394,7 +413,7 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
     ctx.stroke();
 
     // 绘制文本（居中显示）
-    ctx.fillStyle = '#333333';
+    ctx.fillStyle = '#FFFFFF'; // 白色文字
     ctx.textAlign = 'center';
     const textX = bubbleX + bubbleWidth / 2;
     const textY = bubbleY + padding + textHeight / 2;
@@ -442,8 +461,8 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
     isLeft: boolean,
     borderWidth: number = 2
   ) => {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#000000';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.lineWidth = borderWidth;
 
     // 绘制更自然的三角形尾巴，指向角色方向

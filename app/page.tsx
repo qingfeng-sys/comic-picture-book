@@ -45,6 +45,7 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false); // 添加生成状态锁
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [worksTab, setWorksTab] = useState<'scripts' | 'comics'>('comics');
+  const [pendingScriptId, setPendingScriptId] = useState<string | null>(null);
 
   const isLoggedIn = status === 'authenticated';
 
@@ -110,10 +111,14 @@ export default function Home() {
     const scripts = await loadScriptsFromStorage();
     setSavedScripts(scripts);
     
-    alert('脚本已保存！');
-    setEditingScript(null);
-    // 跳转到"我的作品"页面，让用户可以看到保存的脚本
-    setViewMode('my-works');
+    // 如果是新保存的脚本，询问是否立即生成绘本
+    if (confirm('脚本已保存！是否立即前往“生成绘本”页面，将文字转化为精美漫画？')) {
+      setPendingScriptId(scriptId || scripts[0]?.id || null);
+      setViewMode('comic');
+    } else {
+      setEditingScript(null);
+      setViewMode('my-works');
+    }
   };
 
   const handleEditScript = (script: Script) => {
@@ -155,16 +160,20 @@ export default function Home() {
     if (page === 'script') {
       // “脚本生成/开始创作”应始终进入“生成故事脚本”页，而不是回到编辑态
       setEditingScript(null);
+      setPendingScriptId(null); // 清除可能存在的待处理脚本
       setViewMode('script');
     } else if (page === 'comic') {
       setViewMode('comic');
     } else if (page === 'my-works-scripts') {
       setWorksTab('scripts');
+      setPendingScriptId(null);
       setViewMode('my-works');
     } else if (page === 'my-works-comics') {
       setWorksTab('comics');
+      setPendingScriptId(null);
       setViewMode('my-works');
     } else {
+      setPendingScriptId(null);
       setViewMode(page as ViewMode);
     }
   };
@@ -253,7 +262,13 @@ export default function Home() {
 
     return (
       <MainLayout currentPage="comic" onNavigate={handleNavigation} onUserChange={setCurrentUser}>
-        <ComicGenerator onBack={() => setViewMode('home')} />
+        <ComicGenerator 
+          onBack={() => {
+            setPendingScriptId(null);
+            setViewMode('home');
+          }} 
+          initialScriptId={pendingScriptId}
+        />
       </MainLayout>
     );
   }
@@ -401,6 +416,7 @@ export default function Home() {
                             <button
                               onClick={() => {
                                 setEditingScript(null);
+                                setPendingScriptId(script.id);
                                 setViewMode('comic');
                               }}
                               className="p-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-all shadow-lg shadow-primary-200"
@@ -497,9 +513,13 @@ export default function Home() {
                                     const newTitle = prompt('重命名绘本:', comicBook.title || '');
                                     if (newTitle?.trim()) {
                                       const updated = { ...comicBook, title: newTitle.trim(), updatedAt: new Date().toISOString() };
-                                      await saveComicBookToStorage(updated);
-                                      const books = await loadComicBooksFromStorage();
-                                      setSavedComicBooks(books);
+                                      const success = await saveComicBookToStorage(updated);
+                                      if (success) {
+                                        const books = await loadComicBooksFromStorage();
+                                        setSavedComicBooks(books);
+                                      } else {
+                                        alert('保存重命名失败，请重试');
+                                      }
                                     }
                                   }}
                                   className="p-1.5 text-slate-300 hover:text-primary-500 transition-colors"
