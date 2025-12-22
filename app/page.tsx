@@ -7,11 +7,33 @@ import ComicViewer from '@/components/ComicViewer/ComicViewer';
 import PersonalCenter from '@/components/PersonalCenter/PersonalCenter';
 import MainLayout from '@/components/Layout/MainLayout';
 import CharacterLibrary from '@/components/CharacterLibrary/CharacterLibrary';
-import { saveScriptToStorage, loadScriptsFromStorage, loadComicBooksFromStorage, deleteComicBookFromStorage, saveComicBookToStorage } from '@/lib/scriptUtils';
+import { saveScriptToStorage, loadScriptsFromStorage, loadComicBooksFromStorage, deleteComicBookFromStorage, deleteScriptFromStorage, saveComicBookToStorage } from '@/lib/scriptUtils';
 import { useSession } from 'next-auth/react';
 import { Script, ComicBook } from '@/types';
+import { 
+  Sparkles, 
+  Palette, 
+  Library, 
+  BookOpen, 
+  PlusCircle, 
+  Trash2, 
+  Edit3, 
+  Eye, 
+  Download,
+  Clock,
+  Layout,
+  Wand2,
+  ArrowRight,
+  BookMarked,
+  Layers,
+  ArrowUpRight,
+  ChevronRight,
+  FileText,
+  Rocket,
+  Image as ImageIcon
+} from 'lucide-react';
 
-type ViewMode = 'home' | 'script' | 'comic' | 'edit' | 'library' | 'ai-create' | 'my-works' | 'characters' | 'view-comic' | 'personal';
+type ViewMode = 'home' | 'script' | 'comic' | 'edit' | 'library' | 'ai-create' | 'my-works' | 'characters' | 'view-comic' | 'personal' | 'publish';
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -22,6 +44,7 @@ export default function Home() {
   const [viewingComicBook, setViewingComicBook] = useState<ComicBook | null>(null);
   const [isGenerating, setIsGenerating] = useState(false); // 添加生成状态锁
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [worksTab, setWorksTab] = useState<'scripts' | 'comics'>('comics');
 
   const isLoggedIn = status === 'authenticated';
 
@@ -135,6 +158,12 @@ export default function Home() {
       setViewMode('script');
     } else if (page === 'comic') {
       setViewMode('comic');
+    } else if (page === 'my-works-scripts') {
+      setWorksTab('scripts');
+      setViewMode('my-works');
+    } else if (page === 'my-works-comics') {
+      setWorksTab('comics');
+      setViewMode('my-works');
     } else {
       setViewMode(page as ViewMode);
     }
@@ -257,8 +286,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <div className="inline-block mb-4">
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent mb-2 drop-shadow-lg">
-                📚 绘本库
+              <h1 className="text-5xl font-black bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent mb-2 drop-shadow-lg flex items-center justify-center space-x-4">
+                <Library size={48} className="text-purple-600" />
+                <span>绘本库</span>
               </h1>
               <div className="h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 rounded-full"></div>
             </div>
@@ -281,7 +311,7 @@ export default function Home() {
                       : 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
                   }}
                 >
-                  <span className="text-7xl filter drop-shadow-lg animate-float" style={{ animationDelay: `${i * 0.2}s` }}>📖</span>
+                  <BookOpen className="text-white w-20 h-20 filter drop-shadow-lg animate-float" style={{ animationDelay: `${i * 0.2}s` }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </div>
                 <h3 className="font-bold text-xl text-gray-800 mb-2 bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">示例绘本 {i}</h3>
@@ -298,227 +328,349 @@ export default function Home() {
   if (viewMode === 'my-works') {
     return (
       <MainLayout currentPage="my-works" onNavigate={handleNavigation}>
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-6 sm:mb-8 lg:mb-12">
-            <div className="inline-block mb-3 sm:mb-4">
-              <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent mb-2 drop-shadow-lg">
-                🎨 我的作品
-              </h1>
-              <div className="h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 rounded-full"></div>
+        <div className="max-w-[1400px] mx-auto space-y-10 animate-in fade-in duration-500">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100 pb-8">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2.5 bg-primary-50 rounded-2xl text-primary-600 shadow-sm">
+                  <BookMarked size={28} />
+                </div>
+                <h2 className="text-4xl font-black text-slate-800 tracking-tight">作品工坊 (Studio)</h2>
+              </div>
+              <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs ml-1">Asset Management & Pipeline</p>
             </div>
-            <p className="text-gray-600 text-sm sm:text-base lg:text-lg font-medium">查看和管理你的创作</p>
+
+            <div className="flex bg-slate-100/50 p-1.5 rounded-2xl border border-slate-100">
+              <button
+                onClick={() => setWorksTab('comics')}
+                className={`flex items-center gap-2 py-2.5 px-6 rounded-xl text-sm font-black transition-all ${
+                  worksTab === 'comics'
+                    ? 'bg-white text-primary-600 shadow-md translate-y-[-1px]'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <Library size={18} />
+                完成绘本
+              </button>
+              <button
+                onClick={() => setWorksTab('scripts')}
+                className={`flex items-center gap-2 py-2.5 px-6 rounded-xl text-sm font-black transition-all ${
+                  worksTab === 'scripts'
+                    ? 'bg-white text-primary-600 shadow-md translate-y-[-1px]'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <FileText size={18} />
+                故事脚本
+              </button>
+            </div>
           </div>
 
-          {/* 历史生成脚本 */}
-          <div className="bg-white/80 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 mb-4 sm:mb-6 lg:mb-8 border-2 border-purple-200">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2 sm:gap-0">
-              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent">
-                📝 历史生成脚本
-              </h2>
-              <span className="px-3 sm:px-4 py-1 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full text-purple-700 font-bold text-sm sm:text-base">
-                {savedScripts.length}
-              </span>
+          <div className="min-h-[600px]">
+            {worksTab === 'scripts' ? (
+              <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-3">
+                    <FileText className="text-primary-500" size={24} />
+                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider">脚本原稿 (Scripts)</h2>
+                  </div>
+                  <span className="px-4 py-1.5 rounded-full bg-primary-50 text-primary-600 font-black text-xs border border-primary-100/50 uppercase tracking-widest">
+                    {savedScripts.length} Drafts Saved
+                  </span>
+                </div>
+
+                {savedScripts.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {savedScripts.map((script) => (
+                      <div
+                        key={script.id}
+                        className="group relative bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:border-primary-300 hover:shadow-2xl hover:shadow-primary-500/5 transition-all duration-500"
+                      >
+                        <div className="flex justify-between items-start mb-6">
+                          <div className="p-3 bg-slate-50 rounded-2xl text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-500 transition-colors">
+                            <FileText size={24} />
+                          </div>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleEditScript(script)}
+                              className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-all"
+                              title="编辑脚本"
+                            >
+                              <Edit3 size={18} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingScript(null);
+                                setViewMode('comic');
+                              }}
+                              className="p-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-all shadow-lg shadow-primary-200"
+                              title="前往生成绘本"
+                            >
+                              <Wand2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                        <h3 className="font-black text-xl text-slate-800 group-hover:text-primary-600 transition-colors line-clamp-1 mb-3">{script.title}</h3>
+                        <p className="text-sm font-medium text-slate-500 mb-8 line-clamp-4 leading-relaxed italic opacity-70">
+                          "{script.content.substring(0, 150)}..."
+                        </p>
+                        <div className="flex items-center justify-between pt-6 border-t border-slate-50">
+                          <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
+                            <Clock size={12} />
+                            <span>{new Date(script.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteScript(script.id)}
+                            className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50/50 rounded-[3rem] border-2 border-dashed border-slate-200 py-32 text-center">
+                    <div className="w-20 h-20 bg-white rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
+                      <FileText size={40} className="text-slate-200" />
+                    </div>
+                    <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-sm">No scripts drafted yet</p>
+                    <button onClick={() => setViewMode('script')} className="mt-8 btn-primary !rounded-2xl !py-3 !px-8">开始首个故事创作</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-3">
+                    <Library className="text-violet-500" size={24} />
+                    <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider">成品绘本 (Volumes)</h2>
+                  </div>
+                  <span className="px-4 py-1.5 rounded-full bg-violet-50 text-violet-600 font-black text-xs border border-violet-100/50 uppercase tracking-widest">
+                    {savedComicBooks.length} Books Rendered
+                  </span>
+                </div>
+
+                {savedComicBooks.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    {savedComicBooks.map((comicBook) => {
+                      const script = savedScripts.find(s => s.id === comicBook.scriptId);
+                      return (
+                        <div
+                          key={comicBook.id}
+                          className="group bg-white border border-slate-100 rounded-[3rem] p-5 hover:border-violet-300 hover:shadow-2xl hover:shadow-violet-500/5 transition-all duration-500 flex flex-col"
+                        >
+                          <div className="aspect-[3/4] rounded-[2.5rem] bg-slate-100 mb-6 overflow-hidden relative shadow-inner border border-slate-50">
+                            {comicBook.pages.length > 0 ? (
+                              <img
+                                src={comicBook.pages[0].imageUrl}
+                                alt=""
+                                className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-1000"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                <BookOpen size={48} />
+                              </div>
+                            )}
+                            <div className="absolute top-4 right-4 px-4 py-2 bg-black/40 backdrop-blur-md rounded-full text-white text-[10px] font-black uppercase tracking-widest">
+                              {comicBook.pages.length} Pages
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                               <button 
+                                 onClick={() => { setViewingComicBook(comicBook); setViewMode('view-comic'); }}
+                                 className="w-full py-3 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500"
+                               >
+                                 Open Reader
+                               </button>
+                            </div>
+                          </div>
+                          
+                          <div className="flex-1 space-y-4 flex flex-col justify-between">
+                            <div className="flex justify-between items-start gap-3 px-2">
+                              <h3 className="font-black text-lg text-slate-800 group-hover:text-violet-600 transition-colors line-clamp-2 leading-tight">
+                                {comicBook.title || script?.title || '未命名绘本'}
+                              </h3>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const newTitle = prompt('重命名绘本:', comicBook.title || '');
+                                    if (newTitle?.trim()) {
+                                      const updated = { ...comicBook, title: newTitle.trim(), updatedAt: new Date().toISOString() };
+                                      await saveComicBookToStorage(updated);
+                                      const books = await loadComicBooksFromStorage();
+                                      setSavedComicBooks(books);
+                                    }
+                                  }}
+                                  className="p-1.5 text-slate-300 hover:text-primary-500 transition-colors"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteComicBook(comicBook.id); }} 
+                                  className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 px-1 pt-2 border-t border-slate-50">
+                               <div className="flex-1 text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                  <Clock size={10} />
+                                  {new Date(comicBook.updatedAt || comicBook.createdAt).toLocaleDateString()}
+                               </div>
+                               <button
+                                  onClick={async () => {
+                                    if (!isLoggedIn) { alert('请先登录后下载'); return; }
+                                    const { downloadCanvasesAsZip } = await import('@/lib/downloadUtils');
+                                    const { renderComicPageToCanvas } = await import('@/lib/comicPageRenderer');
+                                    const canvases = await Promise.all(comicBook.pages.map(async (page) => ({
+                                      canvas: await renderComicPageToCanvas(page),
+                                      filename: `Page_${String(page.pageNumber).padStart(3, '0')}.png`
+                                    })));
+                                    const title = comicBook.title || 'Collection';
+                                    await downloadCanvasesAsZip(canvases, `Comic-${title}.zip`);
+                                  }}
+                                  className="p-2 text-slate-400 hover:text-violet-600 transition-colors"
+                                  title="Download ZIP"
+                                >
+                                  <Download size={18} />
+                                </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-slate-50/50 rounded-[3rem] border-2 border-dashed border-slate-200 py-32 text-center">
+                    <div className="w-20 h-20 bg-white rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
+                      <Library size={40} className="text-slate-200" />
+                    </div>
+                    <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-sm">Library is currently empty</p>
+                    <button onClick={() => setViewMode('comic')} className="mt-8 btn-primary !bg-gradient-to-r !from-violet-500 !to-fuchsia-500 !rounded-2xl !py-3 !px-8">将脚本转化为绘本</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // 作品发布页面
+  if (viewMode === 'publish') {
+    return (
+      <MainLayout currentPage="publish" onNavigate={handleNavigation}>
+        <div className="max-w-[1400px] mx-auto space-y-10 animate-in fade-in duration-500">
+          <div className="text-center space-y-4">
+            <div className="inline-flex flex-col items-center">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="p-3 bg-primary-50 rounded-2xl text-primary-600 shadow-sm">
+                  <Rocket size={32} />
+                </div>
+                <h1 className="text-4xl font-black text-slate-800 tracking-tight">作品发布中心</h1>
+              </div>
+              <div className="h-1.5 w-64 bg-gradient-to-r from-primary-500 via-brand-violet to-primary-500 rounded-full opacity-20"></div>
             </div>
-            {savedScripts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {savedScripts.map((script) => (
-                  <div
-                    key={script.id}
-                    className="p-5 border-2 border-purple-200 rounded-2xl hover:border-purple-400 transition-all bg-gradient-to-br from-white via-purple-50/50 to-pink-50/50 hover:shadow-xl transform hover:scale-105 relative overflow-hidden group"
+            <p className="text-slate-500 text-lg font-medium">将您的创意结晶分享给世界，开启精彩的视觉旅程</p>
+          </div>
+
+          <div className="bg-white rounded-[3rem] shadow-xl p-10 border border-slate-100">
+            <div className="flex items-center justify-between mb-10">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-primary-500 rounded-full"></div>
+                <h2 className="text-2xl font-black text-slate-800">待发布作品 (Ready to Share)</h2>
+              </div>
+              <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                {savedComicBooks.length} Available Volumes
+              </div>
+            </div>
+
+            {savedComicBooks.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {savedComicBooks.map((comicBook) => (
+                  <div 
+                    key={comicBook.id}
+                    className="group relative bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 hover:bg-white hover:border-primary-300 hover:shadow-2xl hover:shadow-primary-500/5 transition-all duration-500"
                   >
-                    {/* 装饰背景 */}
-                    <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-200/30 to-pink-200/30 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="flex justify-between items-start mb-3">
-                      <h3 className="font-bold text-lg text-gray-800 flex-1">{script.title}</h3>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEditScript(script)}
-                          className="px-3 py-1 rounded-full bg-soft-blue-100 text-soft-blue-600 hover:bg-soft-blue-200 text-sm font-medium transition-colors"
+                    <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-6 shadow-inner relative">
+                      {comicBook.pages.length > 0 ? (
+                        <img 
+                          src={comicBook.pages[0].imageUrl} 
+                          className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-1000" 
+                          alt="" 
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-300">
+                          <ImageIcon size={48} />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-xl font-black text-slate-800 group-hover:text-primary-600 transition-colors line-clamp-1">
+                        {comicBook.title || '未命名作品'}
+                      </h3>
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                        <Clock size={14} />
+                        <span>更新于 {new Date(comicBook.updatedAt || comicBook.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      
+                      <div className="pt-4 grid grid-cols-2 gap-3">
+                        <button 
+                          onClick={() => { setViewingComicBook(comicBook); setViewMode('view-comic'); }}
+                          className="py-3 px-4 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:border-primary-300 hover:text-primary-600 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
-                          编辑
+                          <Eye size={14} />
+                          预览
                         </button>
-                        <button
-                          onClick={() => {
-                            setViewMode('comic');
-                          }}
-                          className="px-3 py-1 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 text-white hover:from-pink-500 hover:to-purple-500 text-sm font-medium transition-all"
+                        <button 
+                          onClick={() => alert('发布功能将在 ICP 备案完成后正式开启！目前您可以先通过“导出”功能保存作品。')}
+                          className="py-3 px-4 bg-primary-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary-700 shadow-lg shadow-primary-200 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
-                          生成绘本
+                          <Rocket size={14} />
+                          发布
                         </button>
                       </div>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3 line-clamp-3">
-                      {script.content.substring(0, 150)}...
-                    </p>
-                    <div className="text-xs text-gray-400 flex justify-between">
-                      <span>创建：{new Date(script.createdAt).toLocaleDateString()}</span>
-                        <button
-                          onClick={async () => {
-                            await handleDeleteScript(script.id);
-                          }}
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          删除
-                        </button>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📝</div>
-                <h3 className="text-xl font-bold text-gray-700 mb-2">还没有保存的脚本</h3>
-                <p className="text-gray-500 mb-6">开始创作你的第一个故事脚本吧！</p>
-                <button
-                  onClick={() => setViewMode('script')}
-                  className="btn-primary"
+              <div className="py-32 text-center space-y-6">
+                <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mx-auto text-slate-200">
+                  <Rocket size={48} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No completed works to publish</p>
+                  <p className="text-slate-300 text-xs font-medium">快去生成您的第一部绘本吧</p>
+                </div>
+                <button 
+                  onClick={() => setViewMode('comic')}
+                  className="btn-primary !rounded-2xl !py-3 !px-8"
                 >
-                  开始创作
+                  前往生成绘本
                 </button>
               </div>
             )}
           </div>
 
-          {/* 历史生成绘本 */}
-          <div className="bg-white/80 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 border-2 border-cyan-200">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2 sm:gap-0">
-              <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 bg-clip-text text-transparent">
-                📚 历史生成绘本
-              </h2>
-              <span className="px-3 sm:px-4 py-1 bg-gradient-to-r from-cyan-100 to-blue-100 rounded-full text-cyan-700 font-bold text-sm sm:text-base">
-                {savedComicBooks.length}
-              </span>
+          <div className="bg-amber-50/50 rounded-3xl p-8 border border-amber-100 flex items-start gap-6">
+            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+              <Sparkles size={24} />
             </div>
-            {savedComicBooks.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {savedComicBooks.map((comicBook) => {
-                  const script = savedScripts.find(s => s.id === comicBook.scriptId);
-                  return (
-                    <div
-                      key={comicBook.id}
-                      className="p-3 sm:p-4 lg:p-5 border-2 border-cyan-200 rounded-xl sm:rounded-2xl hover:border-cyan-400 transition-all bg-gradient-to-br from-white via-cyan-50/50 to-blue-50/50 hover:shadow-xl transform hover:scale-105 relative overflow-hidden group"
-                    >
-                      {/* 装饰背景 */}
-                      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-cyan-200/30 to-blue-200/30 rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                      <div className="aspect-video bg-gradient-to-br from-blue-200 to-purple-200 rounded-xl mb-4 flex items-center justify-center overflow-hidden">
-                        {comicBook.pages.length > 0 ? (
-                          <img
-                            src={comicBook.pages[0].imageUrl}
-                            alt={`绘本封面`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                              (e.target as HTMLImageElement).parentElement!.innerHTML = '<span class="text-6xl">📖</span>';
-                            }}
-                          />
-                        ) : (
-                          <span className="text-6xl">📖</span>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-sm sm:text-base lg:text-lg text-gray-800 flex-1 line-clamp-2" title={comicBook.title || script?.title || '未命名绘本'}>
-                          {comicBook.title || script?.title || `绘本 ${comicBook.id.substring(0, 8)}`}
-                        </h3>
-                        <div className="flex gap-1 ml-2">
-                          <button
-                            onClick={async () => {
-                              const newTitle = prompt('请输入新的绘本名称:', comicBook.title || script?.title || '');
-                              if (newTitle !== null && newTitle.trim()) {
-                                const updatedComicBook = {
-                                  ...comicBook,
-                                  title: newTitle.trim(),
-                                  updatedAt: new Date().toISOString(),
-                                };
-                                await saveComicBookToStorage(updatedComicBook);
-                                const comicBooks = await loadComicBooksFromStorage();
-                                setSavedComicBooks(comicBooks);
-                              }
-                            }}
-                            className="text-blue-500 hover:text-blue-600 text-xs sm:text-sm"
-                            title="重命名"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteComicBook(comicBook.id)}
-                            className="text-red-500 hover:text-red-600 text-xs sm:text-sm"
-                            title="删除"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3">
-                        共 {comicBook.pages.length} 页
-                      </p>
-                      <div className="text-xs text-gray-400 mb-2 sm:mb-3">
-                        创建：{new Date(comicBook.createdAt).toLocaleString()}
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-2 mt-2 sm:mt-3">
-                        <button
-                          onClick={() => {
-                            setViewingComicBook(comicBook);
-                            setViewMode('view-comic');
-                          }}
-                          className="flex-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 text-white hover:from-blue-500 hover:to-purple-500 text-xs sm:text-sm font-medium transition-all transform hover:scale-105"
-                        >
-                          查看绘本
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (!isLoggedIn) {
-                              alert('下载功能需要登录后才能使用，请先登录。');
-                              return;
-                            }
-                            try {
-                              const { downloadCanvasesAsZip } = await import('@/lib/downloadUtils');
-                              const { renderComicPageToCanvas } = await import('@/lib/comicPageRenderer');
-                              // 创建临时Canvas元素来下载
-                              const canvases: Array<{ canvas: HTMLCanvasElement; filename: string }> = [];
-                              
-                              for (let i = 0; i < comicBook.pages.length; i++) {
-                                const page = comicBook.pages[i];
-                                // 关键：离屏渲染，把“对话气泡/旁白”也画进导出图，避免下载后缺失
-                                const canvas = await renderComicPageToCanvas(page);
-                                      canvases.push({
-                                        canvas,
-                                        filename: `第${String(page.pageNumber).padStart(3, '0')}页.png`,
-                                });
-                              }
-
-                              if (canvases.length > 0) {
-                                const comicTitle = comicBook.title || savedScripts.find(s => s.id === comicBook.scriptId)?.title || comicBook.id.substring(0, 8);
-                                const zipFilename = `绘本-${comicTitle}.zip`;
-                                await downloadCanvasesAsZip(canvases, zipFilename);
-                              }
-                            } catch (error) {
-                              console.error('下载失败:', error);
-                              alert('下载失败，请重试');
-                            }
-                          }}
-                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-400 to-emerald-400 text-white hover:from-green-500 hover:to-emerald-500 text-xs sm:text-sm font-medium transition-all transform hover:scale-105"
-                          title="下载整本绘本"
-                        >
-                          ⬇️
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📖</div>
-                <h3 className="text-xl font-bold text-gray-700 mb-2">还没有生成的绘本</h3>
-                <p className="text-gray-500 mb-6">选择一个脚本开始生成绘本吧！</p>
-                <button
-                  onClick={() => setViewMode('comic')}
-                  className="btn-primary"
-                >
-                  生成绘本
-                </button>
-              </div>
-            )}
+            <div>
+              <h4 className="text-amber-800 font-black mb-1">发布小贴士</h4>
+              <p className="text-amber-700/70 text-sm font-medium leading-relaxed">
+                发布后的作品将展示在公共画廊中供其他创作者欣赏。在发布前，请确保您的作品标题和封面已调整至最佳状态。
+                <br />
+                <span className="opacity-60 italic text-xs">* 当前处于内测阶段，发布的作品仅存储于本地浏览器。</span>
+              </p>
+            </div>
           </div>
         </div>
       </MainLayout>
@@ -553,188 +705,163 @@ export default function Home() {
   // 首页
   return (
     <MainLayout currentPage="home" onNavigate={handleNavigation} onUserChange={setCurrentUser}>
-      <div className="max-w-7xl mx-auto w-full">
-        {/* 脚本生成卡片区域 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+      <div className="max-w-[1400px] mx-auto w-full space-y-12 pb-20">
+        {/* 英雄展板区域 (Hero Section) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div 
-            className="relative group rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 cursor-pointer overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl min-h-[200px] sm:min-h-[250px]"
+            className="group relative rounded-[3rem] p-10 cursor-pointer overflow-hidden transition-all duration-500 hover:shadow-[0_20px_80px_-15px_rgba(99,102,241,0.3)] min-h-[350px] flex flex-col justify-between border border-white/20"
             onClick={() => {
-              if (!isLoggedIn) {
-                alert('脚本生成功能需要登录后才能使用，请先登录或注册账号。');
-                return;
-              }
+              if (!isLoggedIn) { alert('请先登录后再开始创作'); return; }
               setViewMode('script');
             }}
             style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
             }}
           >
-            {/* 背景装饰 */}
-            <div className="absolute inset-0 opacity-20">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full blur-2xl"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-cyan-300 rounded-full blur-xl"></div>
+            <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 shadow-xl">
+                <Sparkles size={32} className="text-white animate-pulse" />
+              </div>
+              <h2 className="text-4xl font-black text-white mb-4 tracking-tight">智能脚本生成</h2>
+              <p className="text-primary-100 text-lg font-medium max-w-sm leading-relaxed">
+                输入您的灵感碎片，让 AI 为您构建逻辑严密、情感丰富的漫画脚本
+              </p>
             </div>
             
-            <div className="relative z-10 text-center flex flex-col items-center justify-center h-full">
-              <div className="text-4xl sm:text-5xl lg:text-6xl mb-2 sm:mb-4 animate-float">✨</div>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1 sm:mb-2 drop-shadow-lg">脚本生成</h2>
-              <p className="text-white/90 mb-3 sm:mb-6 text-xs sm:text-sm px-2">AI智能创作，让故事更精彩</p>
-              <button className="px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 lg:py-3 bg-white/20 backdrop-blur-md text-white rounded-full font-bold hover:bg-white/30 transition-all shadow-lg hover:shadow-xl border-2 border-white/30 text-xs sm:text-sm lg:text-base">
-                开始创作 →
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="flex -space-x-2">
+                {[1,2,3].map(i => (
+                  <div key={i} className="w-8 h-8 rounded-full border-2 border-indigo-500 bg-indigo-400 flex items-center justify-center text-[10px] font-black text-white">#{i}</div>
+                ))}
+              </div>
+              <button className="px-8 py-4 bg-white text-primary-600 rounded-2xl font-black shadow-xl hover:bg-primary-50 transition-all active:scale-95 flex items-center gap-3">
+                立即开始
+                <ArrowRight size={20} />
               </button>
-            </div>
-            
-            {/* 光效动画 */}
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
             </div>
           </div>
 
           <div 
-            className="relative group rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 cursor-pointer overflow-hidden transform transition-all duration-300 hover:scale-105 hover:shadow-2xl min-h-[200px] sm:min-h-[250px]"
+            className="group relative rounded-[3rem] p-10 cursor-pointer overflow-hidden transition-all duration-500 hover:shadow-[0_20px_80px_-15px_rgba(139,92,246,0.3)] min-h-[350px] flex flex-col justify-between border border-white/20"
             onClick={() => {
-              if (!isLoggedIn) {
-                alert('绘本生成功能需要登录后才能使用，请先登录或注册账号。');
-                return;
-              }
+              if (!isLoggedIn) { alert('请先登录后再开始生成'); return; }
               setViewMode('comic');
             }}
             style={{
-              background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 50%, #4facfe 100%)',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
             }}
           >
-            {/* 背景装饰 */}
-            <div className="absolute inset-0 opacity-20">
-              <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-2xl"></div>
-              <div className="absolute bottom-0 right-0 w-24 h-24 bg-purple-300 rounded-full blur-xl"></div>
+            <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 shadow-xl">
+                <Palette size={32} className="text-white" />
+              </div>
+              <h2 className="text-4xl font-black text-white mb-4 tracking-tight">视觉绘本渲染</h2>
+              <p className="text-purple-100 text-lg font-medium max-w-sm leading-relaxed">
+                跨帧角色一致性算法，将文字剧本转化为具有专业表现力的全彩画卷
+              </p>
             </div>
             
-            <div className="relative z-10 text-center flex flex-col items-center justify-center h-full">
-              <div className="text-4xl sm:text-5xl lg:text-6xl mb-2 sm:mb-4 animate-float" style={{ animationDelay: '0.5s' }}>🎨</div>
-              <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-1 sm:mb-2 drop-shadow-lg">绘本生成</h2>
-              <p className="text-white/90 mb-3 sm:mb-6 text-xs sm:text-sm px-2">将脚本转换为精美绘本，让故事更生动</p>
-              <button className="px-4 sm:px-6 lg:px-8 py-2 sm:py-2.5 lg:py-3 bg-white/20 backdrop-blur-md text-white rounded-full font-bold hover:bg-white/30 transition-all shadow-lg hover:shadow-xl border-2 border-white/30 text-xs sm:text-sm lg:text-base">
-                开始生成 →
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-white/60 font-black text-[10px] uppercase tracking-widest">
+                <Layers size={14} />
+                Character Consistency Active
+              </div>
+              <button className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center gap-3">
+                一键转换
+                <ArrowUpRight size={20} />
               </button>
-            </div>
-            
-            {/* 光效动画 */}
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
             </div>
           </div>
         </div>
 
-        {/* 绘本画廊 */}
-        <div className="mt-4 sm:mt-6 lg:mt-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2 sm:gap-0">
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent">
-              📚 绘本画廊
-            </h2>
-            <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
-              <span className="px-2 sm:px-3 py-1 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full">共 {savedComicBooks.length} 部作品</span>
+        {/* 绘本画廊区 (Gallery) - 简化为“最近活跃” */}
+        <div className="space-y-10 pt-12">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600">
+                <Clock size={22} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight">最近活跃 (Recent Activity)</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dashboard Live</span>
+                </div>
+              </div>
             </div>
+            <button 
+              onClick={() => setViewMode('my-works')}
+              className="text-xs font-black text-primary-500 uppercase tracking-widest hover:text-primary-600 transition-colors flex items-center gap-1 group"
+            >
+              进入个人作品库
+              <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+            </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
             {savedComicBooks.length > 0 ? (
               <>
-                {savedComicBooks.slice(0, 12).map((comicBook, index) => {
+                {savedComicBooks.slice(0, 6).map((comicBook, index) => {
                   const script = savedScripts.find(s => s.id === comicBook.scriptId);
                   return (
                     <div
                       key={comicBook.id}
-                      className="group aspect-square rounded-xl overflow-hidden relative cursor-pointer transform transition-all duration-300 hover:scale-110 hover:z-10 hover:shadow-2xl"
+                      className="group relative aspect-[3/4] rounded-[2.5rem] overflow-hidden cursor-pointer bg-white border border-slate-100 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary-500/10"
                       onClick={() => {
                         setViewingComicBook(comicBook);
                         setViewMode('view-comic');
-                      }}
-                      style={{
-                        background: index % 4 === 0 
-                          ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                          : index % 4 === 1
-                          ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
-                          : index % 4 === 2
-                          ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-                          : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                        animationDelay: `${index * 0.1}s`
                       }}
                     >
                       {comicBook.pages.length > 0 ? (
                         <>
                           <img
                             src={comicBook.pages[0].imageUrl}
-                            alt={comicBook.title || script?.title || '绘本'}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
+                            alt=""
+                            className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-110"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity"></div>
                         </>
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-5xl filter drop-shadow-lg">📖</span>
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2 bg-slate-50">
+                          <BookOpen size={32} />
+                          <span className="text-[10px] font-black uppercase">No Preview</span>
                         </div>
                       )}
                       
-                      {/* 标题覆盖层 */}
-                      <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                        <p className="text-white text-xs font-bold truncate">{comicBook.title || script?.title || '未命名绘本'}</p>
-                        <p className="text-white/80 text-xs mt-1">{comicBook.pages.length} 页</p>
+                      <div className="absolute bottom-0 left-0 right-0 p-5">
+                        <div className="text-[9px] font-black text-primary-400 uppercase tracking-[0.2em] mb-1">
+                          {comicBook.pages.length} Pages
+                        </div>
+                        <h4 className="text-white font-black text-xs line-clamp-2 leading-snug">
+                          {comicBook.title || script?.title || '未命名绘本'}
+                        </h4>
                       </div>
-                      
-                      {/* 装饰边框 */}
-                      <div className="absolute inset-0 border-2 border-white/30 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </div>
                   );
                 })}
-                {/* 如果绘本少于12个，显示占位符 */}
-                {Array.from({ length: Math.max(0, 12 - savedComicBooks.length) }).map((_, i) => {
-                  const index = savedComicBooks.length + i;
-                  return (
-                    <div
-                      key={`placeholder-${i}`}
-                      className="aspect-square rounded-xl overflow-hidden relative cursor-pointer transform transition-all duration-300 hover:scale-110 hover:shadow-2xl flex items-center justify-center"
-                      style={{
-                        background: index % 4 === 0 
-                          ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                          : index % 4 === 1
-                          ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
-                          : index % 4 === 2
-                          ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-                          : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                      }}
-                    >
-                      <div className="text-center">
-                        <span className="text-4xl filter drop-shadow-lg block mb-2">✨</span>
-                        <span className="text-white text-sm font-bold">即将推出</span>
-                      </div>
-                      <div className="absolute inset-0 border-2 border-white/30 rounded-xl border-dashed"></div>
+                {savedComicBooks.length < 6 && (
+                  <div
+                    className="aspect-[3/4] rounded-[2.5rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 gap-3 hover:border-primary-200 hover:bg-primary-50/30 transition-all group cursor-pointer"
+                    onClick={() => setViewMode('script')}
+                  >
+                    <div className="p-3 rounded-2xl bg-slate-50 group-hover:bg-white group-hover:text-primary-500 transition-all">
+                      <PlusCircle size={24} />
                     </div>
-                  );
-                })}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">New Story</span>
+                  </div>
+                )}
               </>
             ) : (
-              // 如果没有绘本，显示12个占位符
-              [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
+              [1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="aspect-square rounded-xl overflow-hidden relative cursor-pointer transform transition-all duration-300 hover:scale-110 hover:shadow-2xl flex items-center justify-center group"
-                  style={{
-                    background: (i - 1) % 4 === 0 
-                      ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                      : (i - 1) % 4 === 1
-                      ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
-                      : (i - 1) % 4 === 2
-                      ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
-                      : 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                  }}
+                  className="aspect-[3/4] rounded-[2.5rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 gap-3 animate-in fade-in"
+                  style={{ animationDelay: `${i * 0.1}s` }}
                 >
-                  <div className="text-center">
-                    <span className="text-5xl filter drop-shadow-lg block mb-2 animate-float" style={{ animationDelay: `${i * 0.1}s` }}>📖</span>
-                    <span className="text-white text-sm font-bold">等待创作</span>
-                  </div>
-                  <div className="absolute inset-0 border-2 border-white/30 rounded-xl border-dashed opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                  <BookOpen size={32} className="opacity-20" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Ready for Creation</span>
                 </div>
               ))
             )}

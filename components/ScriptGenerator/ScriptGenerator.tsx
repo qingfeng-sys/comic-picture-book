@@ -3,6 +3,22 @@
 import { useState, useEffect } from 'react';
 import { ChatMessage, StoryboardData, Script } from '@/types';
 import ChatInterface from '../ChatInterface/ChatInterface';
+import { 
+  Sparkles, 
+  FileText, 
+  Send, 
+  CheckCircle2, 
+  XCircle, 
+  Layout, 
+  MessageSquare,
+  History,
+  Wand2,
+  Trash2,
+  ChevronRight,
+  ChevronLeft,
+  PenTool,
+  Clock
+} from 'lucide-react';
 
 interface ScriptGeneratorProps {
   onScriptComplete: (script: string, title: string, scriptId?: string) => void;
@@ -216,113 +232,149 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
   };
 
   return (
-    <div className="card max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">{initialScript ? '编辑故事脚本' : '生成故事脚本'}</h2>
+    <div className="bg-white/70 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-primary-500/5 p-8 md:p-10 border border-slate-100 max-w-4xl mx-auto">
+      <div className="flex items-center space-x-4 mb-10">
+        <div className="p-3 bg-primary-50 rounded-2xl text-primary-600 shadow-sm shadow-primary-100">
+          <Sparkles size={28} />
+        </div>
+        <div>
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight">
+            {initialScript ? '编辑故事脚本' : '生成故事脚本'}
+          </h2>
+          <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Script Forge Pipeline</p>
+        </div>
+      </div>
 
       {!currentScript ? (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              脚本标题（可选）
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：小兔子的冒险"
-              className="input-field"
-            />
-          </div>
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+                <FileText size={14} className="text-primary-500" />
+                <span>脚本标题（建议填写）</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="例如：小兔子的冒险"
+                className="input-field !rounded-2xl"
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              输出格式
-            </label>
-            <div className="flex gap-4 mb-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="storyboard"
-                  checked={outputFormat === 'storyboard'}
-                  onChange={(e) => setOutputFormat(e.target.value as 'script' | 'storyboard')}
-                  className="mr-2"
-                />
-                <span>结构化分镜（推荐）</span>
+            <div className="space-y-3">
+              <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+                <Layout size={14} className="text-primary-500" />
+                <span>输出格式选择</span>
               </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="script"
-                  checked={outputFormat === 'script'}
-                  onChange={(e) => setOutputFormat(e.target.value as 'script' | 'storyboard')}
-                  className="mr-2"
-                />
-                <span>传统文本脚本</span>
-              </label>
+              <div className="flex bg-slate-100/50 p-1.5 rounded-2xl border border-slate-100">
+                <button
+                  onClick={() => setOutputFormat('storyboard')}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+                    outputFormat === 'storyboard' 
+                      ? 'bg-white text-primary-600 shadow-md' 
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  结构化分镜
+                </button>
+                <button
+                  onClick={() => setOutputFormat('script')}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+                    outputFormat === 'script' 
+                      ? 'bg-white text-primary-600 shadow-md' 
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  传统文本
+                </button>
+              </div>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              故事描述
+          <div className="space-y-3">
+            <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+              <MessageSquare size={14} className="text-primary-500" />
+              <span>灵感描述 (Inspiration)</span>
             </label>
             <textarea
               value={initialPrompt}
               onChange={(e) => setInitialPrompt(e.target.value)}
               placeholder="描述你想要的故事，可以是详细的情节，也可以只是一个主题。例如：一个小兔子想要去森林探险，遇到了各种有趣的朋友..."
               rows={6}
-              className="textarea-field"
+              className="textarea-field !rounded-[2rem]"
             />
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-4 pt-2">
             <button
               onClick={handleInitialGenerate}
               disabled={isGenerating}
-              className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 btn-primary !py-4 !rounded-2xl flex items-center justify-center space-x-3 text-lg group shadow-xl shadow-primary-200"
             >
-              {isGenerating ? '生成中...' : '生成脚本'}
+              {isGenerating ? (
+                <>
+                  <Clock size={24} className="animate-spin" />
+                  <span>正在构思情节...</span>
+                </>
+              ) : (
+                <>
+                  <Wand2 size={24} className="group-hover:rotate-12 transition-transform" />
+                  <span>开始生成脚本</span>
+                </>
+              )}
             </button>
-            <button onClick={onCancel} className="btn-secondary">
-              取消
+            <button 
+              onClick={onCancel} 
+              className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all flex items-center space-x-2 active:scale-95"
+            >
+              <XCircle size={20} />
+              <span>取消</span>
             </button>
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              脚本标题
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-3">
+            <label className="flex items-center space-x-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+              <FileText size={12} className="text-primary-500" />
+              <span>脚本标题 (Title)</span>
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="输入脚本标题"
-              className="input-field"
+              className="input-field !rounded-xl !py-2.5 !text-base font-bold"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {initialScript ? '脚本内容（可编辑）' : '当前脚本预览'}
+          <div className="space-y-3">
+            <label className="flex items-center space-x-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+              <History size={12} className="text-primary-500" />
+              <span>{initialScript ? '脚本编辑 (Edit Content)' : '脚本预览 (Preview)'}</span>
             </label>
             {initialScript ? (
               <textarea
                 value={currentScript}
                 onChange={(e) => setCurrentScript(e.target.value)}
-                className="textarea-field bg-gray-50 max-h-60 overflow-y-auto whitespace-pre-wrap"
-                rows={10}
+                className="textarea-field !rounded-3xl !bg-slate-50/30 !border-slate-100 max-h-[400px] overflow-y-auto whitespace-pre-wrap font-mono text-sm leading-relaxed"
+                rows={12}
               />
             ) : (
-              <div className="textarea-field bg-gray-50 max-h-60 overflow-y-auto whitespace-pre-wrap">
+              <div className="textarea-field !rounded-3xl !bg-slate-50/30 !border-slate-100 max-h-[400px] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-600 p-6 shadow-inner">
                 {currentScript}
               </div>
             )}
           </div>
 
-          <div className="border-t pt-4">
-            <h3 className="text-lg font-semibold mb-3 text-gray-800">继续完善脚本</h3>
+          <div className="bg-primary-50/30 rounded-[2rem] p-6 border border-primary-100/50">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2 bg-primary-100 text-primary-600 rounded-xl shadow-sm">
+                <MessageSquare size={18} />
+              </div>
+              <h3 className="text-sm font-black text-primary-800 uppercase tracking-wider">对话反馈优化</h3>
+            </div>
             <ChatInterface
               messages={conversationHistory}
               onSendMessage={handleChatMessage}
@@ -331,12 +383,20 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
             />
           </div>
 
-          <div className="flex gap-3 pt-4 border-t">
-            <button onClick={handleConfirm} className="btn-primary flex-1">
-              确认并保存脚本
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={handleConfirm} 
+              className="flex-1 btn-primary !py-4 !rounded-2xl flex items-center justify-center space-x-3 text-lg font-black shadow-xl shadow-primary-200"
+            >
+              <CheckCircle2 size={24} />
+              <span>确认并保存脚本</span>
             </button>
-            <button onClick={onCancel} className="btn-secondary">
-              取消
+            <button 
+              onClick={onCancel} 
+              className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all flex items-center space-x-2 active:scale-95"
+            >
+              <XCircle size={20} />
+              <span>取消</span>
             </button>
           </div>
         </div>

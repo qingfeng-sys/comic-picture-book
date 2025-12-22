@@ -12,6 +12,32 @@ import {
 } from '@/lib/scriptUtils';
 import ComicPageCanvas from '@/components/ComicPageCanvas/ComicPageCanvas';
 import { loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
+import { 
+  ArrowLeft, 
+  Settings2, 
+  Image as ImageIcon, 
+  RefreshCw, 
+  Users, 
+  Layout, 
+  Sparkles, 
+  Play,
+  Search,
+  Plus,
+  FileText,
+  ChevronRight,
+  UserPlus,
+  Wand2,
+  CheckCircle2,
+  AlertCircle,
+  Eye,
+  ChevronLeft,
+  Palette,
+  Clock,
+  ChevronDown,
+  Loader2,
+  User as UserIcon,
+  Layers
+} from 'lucide-react';
 
 const MODEL_OPTIONS: Array<{
   value: GenerationModel;
@@ -383,395 +409,473 @@ export default function ComicGenerator({ onBack }: ComicGeneratorProps) {
   };
 
   return (
-    <div className="card max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">生成漫画绘本</h2>
-        <button onClick={onBack} className="btn-secondary">
-          返回首页
+    <div className="max-w-[1400px] mx-auto space-y-10 animate-in fade-in duration-700">
+      {/* 顶部标题栏 */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-100 pb-8">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-primary-50 rounded-2xl text-primary-600 shadow-sm">
+              <Palette size={28} />
+            </div>
+            <h2 className="text-4xl font-black text-slate-800 tracking-tight">生成漫画绘本</h2>
+          </div>
+          <p className="text-slate-400 font-bold uppercase tracking-[0.2em] text-xs ml-1">Visual Storytelling Pipeline</p>
+        </div>
+        <button 
+          onClick={onBack} 
+          className="group flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold"
+        >
+          <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+          返回工作台
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 左侧：脚本选择 */}
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-lg font-semibold mb-3 text-gray-800">选择脚本</h3>
-
-            {/* 选中脚本后“锁定”脚本列表：只保留目标脚本，避免难以辨认 */}
-            {selectedScript ? (
-              <div className="space-y-3">
-                <div className="w-full text-left p-3 rounded-lg border-2 border-primary-500 bg-primary-50">
-                  <div className="font-medium">{selectedScript.title}</div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    更新时间：{new Date(selectedScript.updatedAt || selectedScript.createdAt).toLocaleString()}
-                  </div>
-                </div>
-                <button onClick={handleResetScriptSelect} className="btn-secondary w-full">
-                  返回上一步：重新选择脚本
-                </button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        {/* 左侧：参数配置面板 */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-8">
+          {/* 脚本选择卡片 */}
+          <section className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-8 border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-primary-50 rounded-full blur-2xl opacity-50"></div>
+            
+            <div className="relative z-10 space-y-6">
+              <div className="flex items-center gap-3 mb-2">
+                <FileText size={20} className="text-primary-500" />
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">选择故事脚本</h3>
               </div>
-            ) : !showImport ? (
-              <div className="space-y-3">
-                {savedScripts.length > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {savedScripts.map((script) => (
-                      <button
-                        key={script.id}
-                        onClick={() => handleScriptSelect(script)}
-                        className="w-full text-left p-3 rounded-lg border-2 transition-colors border-gray-200 hover:border-primary-300"
-                      >
-                        <div className="font-medium">{script.title}</div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          更新时间：{new Date(script.updatedAt || script.createdAt).toLocaleString()}
+
+              {selectedScript ? (
+                <div className="space-y-4 animate-in zoom-in-95 duration-300">
+                  <div className="group relative w-full text-left p-5 rounded-2xl border-2 border-primary-500 bg-primary-50/30 shadow-lg shadow-primary-500/10">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-primary-700 font-black text-lg line-clamp-1">{selectedScript.title}</div>
+                        <div className="flex items-center gap-2 text-primary-500/60 text-[10px] font-bold mt-1 uppercase">
+                          <Clock size={10} />
+                          {new Date(selectedScript.updatedAt || selectedScript.createdAt).toLocaleDateString()}
                         </div>
-                      </button>
-                    ))}
+                      </div>
+                      <div className="p-2 bg-primary-500 text-white rounded-lg">
+                        <CheckCircle2 size={16} />
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">暂无保存的脚本</p>
-                )}
-
-                <button onClick={() => setShowImport(true)} className="btn-secondary w-full">
-                  导入外部脚本
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <textarea
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder="粘贴你的脚本内容..."
-                  rows={8}
-                  className="textarea-field"
-                />
-                <div className="flex gap-2">
-                  <button onClick={handleImportScript} className="btn-primary flex-1">
-                    导入
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowImport(false);
-                      setImportText('');
-                    }}
-                    className="btn-secondary"
+                  <button 
+                    onClick={handleResetScriptSelect} 
+                    className="w-full py-3.5 rounded-xl border border-dashed border-slate-300 text-slate-400 hover:text-primary-600 hover:border-primary-300 hover:bg-primary-50/50 transition-all text-xs font-black uppercase tracking-widest"
                   >
-                    取消
+                    重新选择脚本
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-          
-          {/* 模型选择 */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3 text-gray-800">选择生成模型</h3>
-            <select
-              value={generationModel}
-              onChange={(e) => setGenerationModel(e.target.value as GenerationModel)}
-              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 text-xs text-gray-500 space-y-1">
-              <div>
-                当前模型：{MODEL_OPTIONS.find((o) => o.value === generationModel)?.description || '请选择模型'}
-              </div>
-              <div>通义万相模型采用异步生成，需等待任务完成后返回图片。</div>
+              ) : !showImport ? (
+                <div className="space-y-4">
+                  {savedScripts.length > 0 ? (
+                    <div className="space-y-3 max-h-[320px] overflow-y-auto pr-2 scrollbar-thin">
+                      {savedScripts.map((script) => (
+                        <button
+                          key={script.id}
+                          onClick={() => handleScriptSelect(script)}
+                          className="w-full text-left p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-primary-300 hover:shadow-xl hover:shadow-primary-500/5 transition-all group"
+                        >
+                          <div className="font-bold text-slate-700 group-hover:text-primary-600 transition-colors line-clamp-1">{script.title}</div>
+                          <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                            Last edited: {new Date(script.updatedAt || script.createdAt).toLocaleDateString()}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-10 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                      <AlertCircle size={24} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No scripts found</p>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={() => setShowImport(true)} 
+                    className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-black text-sm hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus size={18} />
+                    手动导入外部脚本
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
+                  <div className="relative">
+                    <textarea
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      placeholder="粘贴您的分镜脚本内容..."
+                      rows={8}
+                      className="textarea-field !rounded-3xl !bg-slate-50/50 !text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={handleImportScript} className="btn-primary flex-1 !rounded-xl !py-3">
+                      确认导入
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowImport(false);
+                        setImportText('');
+                      }}
+                      className="btn-secondary !rounded-xl !py-3"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          </section>
 
-          {/* 角色参考图（跨帧一致性） */}
-          <div className="bg-white/70 backdrop-blur rounded-xl p-4 border-2 border-purple-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-800">角色参考图（跨帧一致性）</h3>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={useCharacterReferences}
-                  onChange={(e) => setUseCharacterReferences(e.target.checked)}
-                />
-                启用
-              </label>
-            </div>
-
-            <p className="text-xs text-gray-600 mb-3">
-              勾选角色后，生成每页时会尝试把角色的 <span className="font-semibold">参考图</span> 作为 <span className="font-semibold">image_reference</span> 传给模型，以提升“几乎同一张脸”的一致性。
-              <br />
-              匹配规则：按对话里的 <code>role</code>（或“角色：对白”中的角色名）匹配角色名/匹配名。
-            </p>
-
-            <div className="bg-white rounded-lg border border-purple-200 p-3 mb-3">
-              <div className="text-sm font-semibold text-gray-800 mb-2">第 1 步：生成角色立绘（可选）</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+          {/* 模型与参考图卡片 */}
+          <section className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-8 border border-slate-100 space-y-8">
+            {/* 模型选择 */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Layout size={20} className="text-primary-500" />
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">生成模型设定</h3>
+              </div>
+              
+              <div className="relative group">
                 <select
-                  className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm"
-                  value={portraitModel}
-                  onChange={(e) => setPortraitModel(e.target.value as GenerationModel)}
-                  disabled={isGenerating || isGeneratingPortraits}
+                  value={generationModel}
+                  onChange={(e) => setGenerationModel(e.target.value as GenerationModel)}
+                  className="w-full p-4 bg-slate-50/50 border border-slate-100 rounded-2xl focus:outline-none focus:bg-white focus:border-primary-400 focus:ring-4 focus:ring-primary-500/5 text-sm font-bold text-slate-700 transition-all appearance-none"
                 >
-                  {PORTRAIT_MODELS.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.label}
+                  {MODEL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
-                <button
-                  type="button"
-                  className="btn-secondary sm:col-span-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={handleGeneratePortraits}
-                  disabled={!selectedScript || isGenerating || isGeneratingPortraits}
-                >
-                  {isGeneratingPortraits ? '生成角色立绘中...' : '生成角色立绘'}
-                </button>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary-500">
+                  <ChevronDown size={18} />
+                </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                说明：该步骤会用“脚本内容”推断角色并生成立绘，生成后会自动写入角色库并在下方自动勾选。
-              </p>
+              <div className="p-4 bg-primary-50/50 rounded-2xl border border-primary-100/50">
+                <p className="text-[10px] leading-relaxed text-primary-700 font-medium">
+                  <span className="font-black uppercase mr-1">Current Model:</span>
+                  {MODEL_OPTIONS.find((o) => o.value === generationModel)?.description}
+                </p>
+              </div>
             </div>
 
-            {visibleCharacters.length === 0 ? (
-              <div className="text-xs text-gray-500">
-                当前脚本还没有匹配到角色参考图。你可以先在上方点击“生成角色立绘”，也可以到“角色库”手动生成/补充匹配名。
-              </div>
-            ) : (
-              <>
-                <div className="text-xs text-gray-600 mb-2">
-                  已自动启用 {selectedCharacterIds.length} 个角色参考图。
-                  <button
-                    type="button"
-                    className="ml-2 text-purple-600 hover:text-purple-700 underline"
-                    onClick={() => setShowCharacterAdvanced(v => !v)}
-                  >
-                    {showCharacterAdvanced ? '收起' : '高级设置'}
-                  </button>
+            {/* 角色一致性控制 */}
+            <div className="space-y-4 border-t border-slate-50 pt-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Users size={20} className="text-violet-500" />
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">视觉一致性</h3>
                 </div>
-                {showCharacterAdvanced && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray-600">
-                        仅显示与当前脚本匹配的角色。若需补充，可从角色库手动添加（建议同步在角色库中完善匹配名）。
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useCharacterReferences}
+                    onChange={(e) => setUseCharacterReferences(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                </label>
+              </div>
+
+              <div className="bg-slate-50/50 rounded-[2rem] p-6 space-y-6">
+                <div className="space-y-3">
+                  <div className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Sparkles size={12} />
+                    立绘同步系统
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="relative group">
+                      <select
+                        className="w-full p-3.5 bg-white border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:border-primary-400 transition-all appearance-none shadow-sm"
+                        value={portraitModel}
+                        onChange={(e) => setPortraitModel(e.target.value as GenerationModel)}
+                        disabled={isGenerating || isGeneratingPortraits}
+                      >
+                        {PORTRAIT_MODELS.map((m) => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300">
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
+                    
+                    <button
+                      type="button"
+                      className="btn-primary !rounded-xl !py-3 flex items-center justify-center gap-2 shadow-lg shadow-primary-200"
+                      onClick={handleGeneratePortraits}
+                      disabled={!selectedScript || isGenerating || isGeneratingPortraits}
+                    >
+                      {isGeneratingPortraits ? (
+                        <Loader2 size={18} className="animate-spin" />
+                      ) : (
+                        <Wand2 size={18} />
+                      )}
+                      <span className="text-sm font-black">同步角色形象</span>
+                    </button>
+                  </div>
+                </div>
+
+                {visibleCharacters.length > 0 && (
+                  <div className="border-t border-slate-100 pt-6">
+                    <div className="flex items-center justify-between mb-4 px-1">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        {selectedCharacterIds.length} Assets Selected
                       </div>
                       <button
                         type="button"
-                        className="text-xs text-purple-600 hover:text-purple-700 underline"
-                        onClick={() => setShowAddFromLibrary((v) => !v)}
-                        disabled={!selectedScript}
+                        className="text-[10px] font-black text-primary-500 hover:text-primary-600 uppercase tracking-widest flex items-center gap-1"
+                        onClick={() => setShowCharacterAdvanced(!showCharacterAdvanced)}
                       >
-                        {showAddFromLibrary ? '收起添加' : '从角色库中添加'}
+                        {showCharacterAdvanced ? 'Hide' : 'Manage'}
+                        <Settings2 size={10} />
                       </button>
                     </div>
 
-                    {showAddFromLibrary && (
-                      <div className="rounded-lg border border-purple-200 bg-white p-2 space-y-2">
-                        <input
-                          value={addFromLibraryQuery}
-                          onChange={(e) => setAddFromLibraryQuery(e.target.value)}
-                          placeholder="搜索角色名..."
-                          className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm"
-                        />
-                        <div className="max-h-40 overflow-y-auto space-y-1">
-                          {characters
-                            .filter((c) => !visibleCharacters.some((v) => v.id === c.id))
-                            .filter((c) => {
-                              const q = addFromLibraryQuery.trim();
-                              if (!q) return true;
-                              const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
-                              return keys.some((k) => String(k || '').includes(q)) || String(c.name || '').includes(q);
-                            })
-                            .slice(0, 50)
-                            .map((c) => (
-                              <div
-                                key={c.id}
-                                className="flex items-center gap-2 p-2 rounded border border-gray-200 bg-white"
-                              >
-                                <div className="w-9 h-9 rounded overflow-hidden bg-gray-100 flex items-center justify-center border">
-                                  {c.referenceImageUrl ? (
-                                    <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <span className="text-base">👤</span>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-semibold text-gray-800 truncate">{c.name}</div>
-                                  <div className="text-xs text-gray-500 truncate">
-                                    匹配名：{(c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name]).join('、')}
+                    {showCharacterAdvanced && (
+                      <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                            <input
+                              value={addFromLibraryQuery}
+                              onChange={(e) => setAddFromLibraryQuery(e.target.value)}
+                              placeholder="搜索角色..."
+                              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-100 rounded-xl text-xs font-bold outline-none focus:border-primary-300 transition-all"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="p-2 bg-white border border-slate-100 rounded-xl text-primary-500 hover:bg-primary-50 transition-all shadow-sm"
+                            onClick={() => setShowAddFromLibrary(!showAddFromLibrary)}
+                            title="从库中添加"
+                          >
+                            <UserPlus size={18} />
+                          </button>
+                        </div>
+
+                        {showAddFromLibrary && (
+                          <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-white rounded-2xl border border-slate-100 shadow-inner scrollbar-thin">
+                            {characters
+                              .filter((c) => !visibleCharacters.some((v) => v.id === c.id))
+                              .filter((c) => {
+                                const q = addFromLibraryQuery.trim();
+                                if (!q) return true;
+                                const keys = c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name];
+                                return keys.some((k) => String(k || '').includes(q)) || String(c.name || '').includes(q);
+                              })
+                              .map((c) => (
+                                <div key={c.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-all">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden border border-slate-200 flex items-center justify-center">
+                                      {c.referenceImageUrl ? <img src={c.referenceImageUrl} className="w-full h-full object-cover" /> : <UserIcon size={14} className="text-slate-300" />}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-600">{c.name}</span>
                                   </div>
+                                  <button
+                                    onClick={() => {
+                                      setUserTouchedCharacterSelection(true);
+                                      setExtraVisibleCharacterIds((prev) => Array.from(new Set([...prev, c.id])));
+                                      setSelectedCharacterIds((prev) => Array.from(new Set([...prev, c.id])));
+                                    }}
+                                    className="p-1.5 text-primary-500 hover:bg-primary-50 rounded-lg transition-all"
+                                  >
+                                    <Plus size={14} />
+                                  </button>
                                 </div>
-                                <button
-                                  type="button"
-                                  className="text-xs px-2 py-1 rounded border border-purple-300 text-purple-700 hover:bg-purple-50"
-                                  onClick={() => {
+                              ))}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
+                          {visibleCharacters.map((c) => (
+                            <label key={c.id} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 bg-white hover:border-primary-200 transition-all cursor-pointer group shadow-sm">
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCharacterIds.includes(c.id)}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
                                     setUserTouchedCharacterSelection(true);
-                                    setExtraVisibleCharacterIds((prev) => Array.from(new Set([...prev, c.id])));
-                                    setSelectedCharacterIds((prev) => Array.from(new Set([...prev, c.id])));
+                                    setSelectedCharacterIds((prev) =>
+                                      checked ? Array.from(new Set([...prev, c.id])) : prev.filter((id) => id !== c.id)
+                                    );
                                   }}
-                                >
-                                  添加
-                                </button>
+                                  disabled={!useCharacterReferences}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-5 h-5 border-2 border-slate-200 rounded-lg peer-checked:bg-primary-500 peer-checked:border-primary-500 transition-all flex items-center justify-center">
+                                  <CheckCircle2 size={12} className="text-white opacity-0 peer-checked:opacity-100 transition-all" />
+                                </div>
                               </div>
-                            ))}
-                          {characters.filter((c) => !visibleCharacters.some((v) => v.id === c.id)).length === 0 && (
-                            <div className="text-xs text-gray-500 py-2">没有可添加的角色（已全部在当前列表中）。</div>
-                          )}
+                              <div className="w-10 h-10 rounded-xl bg-slate-50 overflow-hidden border border-slate-100 group-hover:border-primary-100 transition-all flex items-center justify-center">
+                                {c.referenceImageUrl ? <img src={c.referenceImageUrl} className="w-full h-full object-cover" /> : <UserIcon size={18} className="text-slate-200" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-black text-slate-700 truncate">{c.name}</div>
+                                <div className="text-[10px] font-bold text-slate-400 truncate mt-0.5">
+                                  {(c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name]).join(' / ')}
+                                </div>
+                              </div>
+                              {!c.referenceImageUrl && <AlertCircle size={14} className="text-amber-400" />}
+                            </label>
+                          ))}
                         </div>
                       </div>
                     )}
-
-                    <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto">
-                    {visibleCharacters.map((c) => (
-                      <label key={c.id} className="flex items-center gap-3 p-2 rounded-lg border border-gray-200 bg-white">
-                        <input
-                          type="checkbox"
-                          checked={selectedCharacterIds.includes(c.id)}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setUserTouchedCharacterSelection(true);
-                            setSelectedCharacterIds((prev) =>
-                              checked ? Array.from(new Set([...prev, c.id])) : prev.filter((id) => id !== c.id)
-                            );
-                          }}
-                          disabled={!useCharacterReferences}
-                        />
-                        <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center border">
-                          {c.referenceImageUrl ? (
-                            <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-lg">👤</span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-gray-800 truncate">{c.name}</div>
-                          <div className="text-xs text-gray-500 truncate">
-                            匹配名：{(c.matchNames && c.matchNames.length > 0 ? c.matchNames : [c.name]).join('、')}
-                          </div>
-                        </div>
-                        {!c.referenceImageUrl && (
-                          <span className="text-xs text-orange-600">未生成立绘</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
                   </div>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          </section>
+        </div>
 
-          {/* 脚本片段选择 */}
-          {selectedScript && (
-            <div>
-              <h3 className="text-lg font-semibold mb-3 text-gray-800">
-                选择脚本片段（共{selectedScript.totalSegments}段）
-              </h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {selectedScript.segments.map((segment) => (
-                  <button
-                    key={segment.segmentId}
-                    onClick={() => setSelectedSegmentId(segment.segmentId)}
-                    className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${
-                      selectedSegmentId === segment.segmentId
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-300'
-                    }`}
-                  >
-                    <div className="font-medium">片段 {segment.segmentId}</div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      约 {segment.pageCount} 页
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1 line-clamp-2">
-                      {segment.content.substring(0, 100)}...
-                    </div>
-                  </button>
-                ))}
+        {/* 右侧：生成控制与预览 */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-8">
+          <section className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 p-8 md:p-12 border border-slate-100 min-h-[600px] flex flex-col">
+            <div className="flex items-center justify-between mb-10 px-2">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-violet-50 rounded-2xl text-violet-600 shadow-sm shadow-violet-100">
+                  <ImageIcon size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight">渲染预览 (Render Engine)</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Ready</span>
+                  </div>
+                </div>
               </div>
               
-              {selectedSegmentId !== null && (
+              {selectedScript && selectedSegmentId !== null && (
                 <button
                   onClick={handleGenerateComic}
                   disabled={isGenerating}
-                  className="btn-primary w-full mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary !py-3.5 !px-8 !rounded-2xl flex items-center gap-3 shadow-xl shadow-primary-200 group transition-all"
                 >
-                  {isGenerating ? '生成中...' : '生成绘本'}
+                  {isGenerating ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Play size={20} className="group-hover:translate-x-0.5 transition-transform" />
+                  )}
+                  <span className="text-base font-black">执行生成流水线</span>
                 </button>
               )}
             </div>
-          )}
-        </div>
 
-        {/* 右侧：绘本预览 */}
-        <div>
-          <h3 className="text-lg font-semibold mb-3 text-gray-800">绘本预览</h3>
-          
-          {isGenerating ? (
-            <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">正在生成绘本...</p>
-              </div>
-            </div>
-          ) : generatedPages.length > 0 ? (
-            <div className="space-y-4 max-h-[600px] overflow-y-auto">
-              {generatedPages.map((page) => (
-                <div key={page.pageNumber} className="border border-gray-200 rounded-lg p-4 bg-white">
-                  <div className="text-sm font-medium text-gray-600 mb-2">
-                    第 {page.pageNumber} 页
+            <div className="flex-1 flex flex-col">
+              {!selectedScript ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
+                  <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-6">
+                    <FileText size={48} className="text-slate-300" />
                   </div>
-                  
-                  {/* 使用Canvas组件，在图片上叠加对话和旁白 */}
-                  <ComicPageCanvas page={page} />
-                  
-                  {/* 可选：在下方显示原始文本信息（用于调试或查看） */}
-                  {(page.narration || (page.dialogue && page.dialogue.length > 0)) && (
-                    <details className="mt-3 text-xs">
-                      <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-                        查看文本内容
-                      </summary>
-                      <div className="mt-2 space-y-2 p-2 bg-gray-50 rounded">
-                        {page.narration && (
-                          <div>
-                            <span className="font-semibold text-blue-700">旁白：</span>
-                            <span className="text-gray-700">{page.narration}</span>
-                          </div>
-                        )}
-                        {page.dialogue && page.dialogue.length > 0 && (
-                          <div>
-                            <span className="font-semibold text-purple-700">对话：</span>
-                            <div className="mt-1 space-y-1">
-                              {page.dialogue.map((dialogue, index) => {
-                                // 处理新旧两种格式
-                                if (typeof dialogue === 'string') {
-                                  // 旧格式：字符串
-                                  return <div key={index} className="text-gray-700">{dialogue}</div>;
-                                } else {
-                                  // 新格式：DialogueItem对象
-                                  return (
-                                    <div key={index} className="text-gray-700">
-                                      {dialogue.role}："{dialogue.text}" 
-                                      <span className="text-xs text-gray-500 ml-2">
-                                        ({dialogue.anchor}, {dialogue.x_ratio.toFixed(2)}, {dialogue.y_ratio.toFixed(2)})
-                                      </span>
+                  <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-sm">Please select a script to begin</p>
+                </div>
+              ) : selectedSegmentId === null ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center">
+                  <div className="mb-10 max-w-md w-full animate-in zoom-in-95 duration-500">
+                    <div className="p-6 bg-primary-50 rounded-[2.5rem] border border-primary-100 shadow-inner">
+                      <div className="text-primary-600 mb-6 flex justify-center">
+                        <Layers size={40} />
+                      </div>
+                      <h4 className="text-lg font-black text-primary-800 mb-2 tracking-tight">分段处理系统</h4>
+                      <p className="text-xs font-bold text-primary-600/70 uppercase tracking-widest leading-relaxed mb-8">
+                        脚本共切分为 {selectedScript.totalSegments} 个片段<br/>请选择一个执行渲染
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {selectedScript.segments.map((segment) => (
+                          <button
+                            key={segment.segmentId}
+                            onClick={() => setSelectedSegmentId(segment.segmentId)}
+                            className="p-4 rounded-2xl bg-white border border-primary-100 text-primary-600 font-black text-sm hover:shadow-lg hover:-translate-y-1 transition-all active:scale-95 shadow-sm"
+                          >
+                            #{segment.segmentId}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : isGenerating ? (
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <div className="relative mb-8">
+                    <div className="w-32 h-32 border-4 border-primary-100 border-t-primary-600 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center text-primary-600">
+                      <Sparkles size={32} className="animate-pulse" />
+                    </div>
+                  </div>
+                  <p className="text-slate-800 text-xl font-black tracking-tight mb-2">正在渲染分镜资产...</p>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em]">AI processing active • Do not close tab</p>
+                </div>
+              ) : generatedPages.length > 0 ? (
+                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 max-h-[800px] overflow-y-auto pr-4 scrollbar-thin">
+                  {generatedPages.map((page) => (
+                    <div key={page.pageNumber} className="relative group/page">
+                      <div className="absolute -left-4 top-0 bottom-0 w-1 bg-slate-100 group-hover/page:bg-primary-500 transition-colors rounded-full"></div>
+                      <div className="flex items-center justify-between mb-4 px-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl font-black text-slate-800 tabular-nums">#{String(page.pageNumber).padStart(2, '0')}</span>
+                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-wider">Page Output</span>
+                        </div>
+                        <button className="p-2 text-slate-300 hover:text-primary-500 transition-colors" title="Quick Preview">
+                          <Eye size={18} />
+                        </button>
+                      </div>
+                      
+                      <div className="bg-slate-50 rounded-3xl p-4 md:p-6 transition-all group-hover/page:bg-white group-hover/page:shadow-2xl group-hover/page:shadow-primary-500/5 group-hover/page:ring-1 group-hover/page:ring-slate-100">
+                        <ComicPageCanvas page={page} className="w-full" />
+                        
+                        {(page.narration || (page.dialogue && page.dialogue.length > 0)) && (
+                          <div className="mt-6 pt-6 border-t border-slate-100">
+                            <details className="group/details">
+                              <summary className="flex items-center gap-2 cursor-pointer list-none text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">
+                                <ChevronRight size={12} className="group-open/details:rotate-90 transition-transform" />
+                                Inspect Metadata
+                              </summary>
+                              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
+                                {page.narration && (
+                                  <div className="space-y-2">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase">Narration</div>
+                                    <p className="text-xs font-medium text-slate-600 leading-relaxed bg-white p-3 rounded-xl border border-slate-50 shadow-sm">{page.narration}</p>
+                                  </div>
+                                )}
+                                {page.dialogue && page.dialogue.length > 0 && (
+                                  <div className="space-y-2">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase">Dialogues</div>
+                                    <div className="space-y-2">
+                                      {page.dialogue.map((d, idx) => (
+                                        <div key={idx} className="bg-white p-3 rounded-xl border border-slate-50 shadow-sm flex items-start gap-3">
+                                          <div className="w-5 h-5 rounded bg-primary-50 flex items-center justify-center text-primary-600 text-[10px] font-black shrink-0">
+                                            {typeof d === 'string' ? '?' : d.role[0]}
+                                          </div>
+                                          <p className="text-xs font-medium text-slate-600 leading-relaxed italic">
+                                            {typeof d === 'string' ? d : `"${d.text}"`}
+                                          </p>
+                                        </div>
+                                      ))}
                                     </div>
-                                  );
-                                }
-                              })}
-                            </div>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
                           </div>
                         )}
                       </div>
-                    </details>
-                  )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30">
+                  <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-6">
+                    <ImageIcon size={48} className="text-slate-300" />
+                  </div>
+                  <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-sm">Output ready for engine command</p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="flex items-center justify-center h-96 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">选择脚本片段并点击生成</p>
-            </div>
-          )}
+          </section>
         </div>
       </div>
     </div>

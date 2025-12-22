@@ -4,6 +4,23 @@ import { useEffect, useMemo, useState } from 'react';
 import type { CharacterProfile, GenerationModel, Script } from '@/types';
 import { deleteCharacter, loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
 import { loadScriptsFromStorage, extractStoryboardFromScript } from '@/lib/scriptUtils';
+import { 
+  Users, 
+  UserPlus, 
+  Trash2, 
+  MoveRight, 
+  ChevronLeft,
+  ChevronRight,
+  Wand2,
+  BookOpen, 
+  Layers,
+  Search,
+  Check,
+  User,
+  Plus,
+  RefreshCw,
+  Sparkles
+} from 'lucide-react';
 
 const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
   { value: 'wan2.5-t2i-preview', label: '通义万相 V2.5 Preview（文生图）' },
@@ -237,88 +254,141 @@ export default function CharacterLibrary() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="inline-block mb-4">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent mb-2 drop-shadow-lg">
-            👥 角色库
-          </h1>
-          <div className="h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 rounded-full"></div>
+      <div className="text-center mb-12">
+        <div className="inline-flex flex-col items-center">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-3 rounded-2xl bg-primary-100 text-primary-600 shadow-sm shadow-primary-100">
+              <Users size={32} />
+            </div>
+            <h1 className="text-4xl font-black text-slate-800 tracking-tight">
+              角色管理中心
+            </h1>
+          </div>
+          <div className="h-1.5 w-full bg-gradient-to-r from-primary-500 via-brand-violet to-primary-500 rounded-full opacity-20"></div>
         </div>
-        <p className="text-gray-600 text-base font-medium">
-          先生成“角色立绘/参考图”，再用于绘本生成的 <span className="font-bold">image_reference</span>，提升跨帧一致性
+        <p className="mt-4 text-slate-500 text-lg font-medium max-w-2xl mx-auto leading-relaxed">
+          统一维护角色的视觉特征，确保每一帧漫画中角色的形象 <span className="text-primary-600 font-bold underline decoration-primary-200 decoration-4">始终如一</span>
         </p>
       </div>
 
       {/* 上部：我的角色（按脚本分组） */}
       {view === 'groups' && (
-        <div className="space-y-6">
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-cyan-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800">我的角色</h2>
-              <span className="px-3 py-1 rounded-full bg-gradient-to-r from-cyan-100 to-blue-100 text-cyan-700 font-bold text-sm">
-                {sortedAll.length}
+        <div className="space-y-8">
+          <div className="bg-white rounded-[2.5rem] shadow-xl p-8 border border-slate-100">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <Layers className="text-primary-500" size={24} />
+                <h2 className="text-xl font-bold text-slate-800">角色分册</h2>
+              </div>
+              <span className="px-4 py-1.5 rounded-xl bg-primary-50 text-primary-600 font-black text-xs border border-primary-100/50 uppercase tracking-widest">
+                {sortedAll.length} Total Units
               </span>
             </div>
 
             {(scriptGroups.length === 0 && customCharacters.length === 0 && uncategorized.length === 0) ? (
-              <div className="text-center py-10 text-gray-600">还没有角色。你可以在下方新增自定义角色，或在“绘本生成”里一键生成角色立绘。</div>
+              <div className="text-center py-16 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200">
+                <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                <p className="text-slate-500 font-bold">角色库尚无记录</p>
+                <p className="text-slate-400 text-sm mt-1 font-medium">您可以手动定妆，或在绘本生成时由 AI 自动同步</p>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {scriptGroups.map((g) => (
                   <button
                     key={g.scriptId}
-                    className="text-left border-2 border-cyan-200 rounded-xl p-4 bg-white hover:border-cyan-300 transition-colors"
+                    className="group relative text-left border border-slate-100 rounded-2xl p-6 bg-slate-50/30 hover:bg-white hover:border-primary-300 hover:shadow-xl hover:shadow-primary-500/5 transition-all duration-300"
                     onClick={() => {
                       setActiveGroup({ type: 'script', scriptId: g.scriptId, title: g.title });
                       setView('groupDetail');
                     }}
                   >
-                    <div className="font-bold text-gray-800 truncate">{g.title}</div>
-                    <div className="text-xs text-gray-500 mt-1">包含角色：{g.characters.length}</div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2.5 rounded-xl bg-white shadow-sm text-slate-400 group-hover:text-primary-600 transition-colors border border-slate-100">
+                        <BookOpen size={18} />
+                      </div>
+                      <div className="font-bold text-slate-700 truncate group-hover:text-primary-700 transition-colors">{g.title}</div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-slate-500">
+                        {g.characters.length} Characters
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300 group-hover:text-primary-400 group-hover:translate-x-1 transition-all" />
+                    </div>
                   </button>
                 ))}
 
                 <button
-                  className="text-left border-2 border-purple-200 rounded-xl p-4 bg-white hover:border-purple-300 transition-colors"
+                  className="group relative text-left border border-primary-100 rounded-2xl p-6 bg-primary-50/30 hover:bg-white hover:border-primary-300 hover:shadow-xl hover:shadow-primary-500/5 transition-all duration-300"
                   onClick={() => {
                     setActiveGroup({ type: 'custom', title: '自定义角色' });
                     setView('groupDetail');
                   }}
                 >
-                  <div className="font-bold text-gray-800">自定义角色</div>
-                  <div className="text-xs text-gray-500 mt-1">包含角色：{customCharacters.length + uncategorized.length}</div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2.5 rounded-xl bg-primary-100 text-primary-600 shadow-sm transition-colors">
+                      <Users size={18} />
+                    </div>
+                    <div className="font-bold text-slate-800 group-hover:text-primary-700 transition-colors">独立角色库</div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-black text-primary-400 uppercase tracking-widest">
+                      {customCharacters.length + uncategorized.length} Unique Units
+                    </div>
+                    <ChevronRight size={16} className="text-primary-300 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </button>
               </div>
             )}
           </div>
 
           {/* 下部：新增自定义角色入口 */}
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-purple-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-lg font-bold text-gray-800">新增角色</div>
-                <div className="text-xs text-gray-500 mt-1">将角色添加到“自定义角色”中</div>
+          <div className="bg-gradient-to-r from-primary-600 to-brand-violet rounded-[2.5rem] shadow-2xl shadow-primary-500/10 p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
+            
+            <div className="flex items-center gap-8 relative z-10 text-center md:text-left">
+              <div className="hidden sm:flex w-20 h-20 rounded-3xl bg-white/20 items-center justify-center backdrop-blur-md shadow-xl border border-white/20">
+                <UserPlus size={36} />
               </div>
-              <button className="btn-primary" onClick={() => setView('create')}>
-                新增自定义角色
-              </button>
+              <div>
+                <h2 className="text-3xl font-black mb-2 tracking-tight">塑造专属角色形象</h2>
+                <p className="text-primary-100 font-medium text-lg max-w-md">手动定妆并生成高清立绘，为绘本创作提供核心视觉资产</p>
+              </div>
             </div>
+            
+            <button 
+              className="relative z-10 whitespace-nowrap px-10 py-5 bg-white text-primary-600 rounded-2xl font-black text-lg shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-3" 
+              onClick={() => setView('create')}
+            >
+              <Plus size={24} />
+              立即新增角色
+            </button>
           </div>
         </div>
       )}
 
       {/* 组详情：点击脚本/自定义角色后显示具体角色 */}
       {view === 'groupDetail' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">{activeGroup.title}</h2>
-              <div className="text-xs text-gray-500 mt-1">点“返回”可回到脚本分组列表</div>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-4">
+              <button className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-500" onClick={() => setView('groups')}>
+                <ChevronLeft size={24} />
+              </button>
+              <div>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight">{activeGroup.title}</h2>
+                <div className="text-xs font-bold text-slate-400 mt-0.5 uppercase tracking-widest">Character Roster</div>
+              </div>
             </div>
-            <button className="btn-secondary" onClick={() => setView('groups')}>返回</button>
+            <div className="flex items-center gap-2">
+               <span className="hidden sm:inline text-xs font-bold text-slate-400 mr-2">Manage your story assets</span>
+               <button className="btn-secondary !py-2 !px-4 flex items-center gap-2" onClick={() => setView('groups')}>
+                 <Layers size={16} />
+                 切换分组
+               </button>
+            </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-cyan-200">
+          <div className="bg-white rounded-[2.5rem] shadow-xl p-8 border border-slate-100">
             {(() => {
               const list =
                 activeGroup.type === 'script'
@@ -326,32 +396,46 @@ export default function CharacterLibrary() {
                   : [...customCharacters, ...uncategorized];
 
               if (list.length === 0) {
-                return <div className="text-center py-10 text-gray-600">该分组下暂无角色。</div>;
+                return (
+                  <div className="text-center py-20">
+                    <Users size={64} className="mx-auto text-slate-200 mb-6" />
+                    <p className="text-slate-500 text-lg font-bold">该分组下暂无角色</p>
+                    <p className="text-slate-400 mt-2">点击返回可以查看其他分组或新建角色</p>
+                  </div>
+                );
               }
 
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                   {list.map((c) => (
-                    <div key={c.id} className="border-2 border-cyan-200 rounded-xl p-4 bg-white">
-                      <div className="flex gap-4">
-                        <div className="w-24 h-24 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center border">
-                          {c.referenceImageUrl ? (
-                            <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-3xl">👤</span>
+                    <div key={c.id} className="group relative bg-slate-50/50 rounded-3xl p-6 border border-slate-100 hover:bg-white hover:border-primary-200 hover:shadow-2xl hover:shadow-primary-500/5 transition-all duration-500">
+                      <div className="flex flex-col sm:flex-row gap-6">
+                        <div className="relative shrink-0">
+                          <div className="w-32 h-32 rounded-[2rem] bg-white overflow-hidden shadow-inner flex items-center justify-center border-4 border-white group-hover:border-primary-50 transition-all duration-500">
+                            {c.referenceImageUrl ? (
+                              <img src={c.referenceImageUrl} alt={c.name} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700" />
+                            ) : (
+                              <User size={48} className="text-slate-200" />
+                            )}
+                          </div>
+                          {c.referenceImageUrl && (
+                             <div className="absolute -bottom-2 -right-2 bg-primary-500 text-white p-2 rounded-xl shadow-lg shadow-primary-500/30">
+                               <Check size={14} strokeWidth={4} />
+                             </div>
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
+                        
+                        <div className="flex-1 min-w-0 flex flex-col">
+                          <div className="flex items-start justify-between gap-4 mb-3">
                             <div className="min-w-0">
-                              <div className="font-bold text-gray-800 truncate">{c.name}</div>
-                              {c.description && <div className="text-xs text-gray-600 mt-1 line-clamp-2">{c.description}</div>}
-                              {c.visual && <div className="text-xs text-gray-500 mt-1 line-clamp-2">外观：{c.visual}</div>}
+                              <h3 className="text-xl font-black text-slate-800 group-hover:text-primary-600 transition-colors truncate">{c.name}</h3>
+                              {c.description && <p className="text-sm font-medium text-slate-500 mt-1 line-clamp-2 leading-relaxed">{c.description}</p>}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 type="button"
-                                className="text-gray-600 hover:text-gray-800 text-sm"
+                                className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-xl transition-all"
+                                title="移动到其他组"
                                 onClick={() => {
                                   setMoveOpenForId((prev) => {
                                     const next = prev === c.id ? null : c.id;
@@ -365,62 +449,69 @@ export default function CharacterLibrary() {
                                   });
                                 }}
                               >
-                                移动
+                                <MoveRight size={18} />
                               </button>
-                              <button className="text-red-500 hover:text-red-600 text-sm" onClick={() => handleDelete(c.id)}>
-                                删除
+                              <button 
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" 
+                                title="从库中删除"
+                                onClick={() => handleDelete(c.id)}
+                              >
+                                <Trash2 size={18} />
                               </button>
                             </div>
                           </div>
 
-                          {moveOpenForId === c.id && (
-                            <div className="mt-3 flex items-center gap-2">
-                              <select
-                                className="flex-1 p-2 border-2 border-gray-200 rounded-lg text-sm"
-                                value={moveTargetById[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom')}
-                                onChange={(e) => setMoveTargetById((prev) => ({ ...prev, [c.id]: e.target.value }))}
-                              >
-                                <option value="custom">自定义角色</option>
-                                {scriptGroups.map((g) => (
-                                  <option key={g.scriptId} value={g.scriptId}>
-                                    {g.title}
-                                  </option>
-                                ))}
-                                {scripts
-                                  .filter((s) => !scriptGroups.some((g) => g.scriptId === s.id))
-                                  .sort((a, b) => (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt))
-                                  .map((s) => (
-                                    <option key={s.id} value={s.id}>
-                                      {s.title}
-                                    </option>
-                                  ))}
-                              </select>
-                              <button
-                                type="button"
-                                className="text-xs px-3 py-2 rounded border border-gray-300 hover:bg-gray-50"
-                                onClick={() => {
-                                  const target = moveTargetById[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom');
-                                  handleMoveCharacter(c, target);
-                                  setMoveOpenForId(null);
-                                }}
-                              >
-                                确定
-                              </button>
-                            </div>
-                          )}
+                          <div className="mt-auto space-y-4">
+                            {c.visual && (
+                               <div className="flex items-center gap-2 py-1.5 px-3 bg-white/60 rounded-xl border border-slate-100/50">
+                                 <Wand2 size={14} className="text-violet-400 shrink-0" />
+                                 <span className="text-xs font-bold text-slate-500 truncate">外观：{c.visual}</span>
+                               </div>
+                            )}
 
-                          <div className="mt-3">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">匹配名（逗号分隔）</label>
-                            <input
-                              className="input-field"
-                              defaultValue={(c.matchNames || [c.name]).join(',')}
-                              onBlur={(e) => handleUpdateMatchNames(c, e.target.value)}
-                            />
+                            {moveOpenForId === c.id && (
+                              <div className="flex items-center gap-2 p-2 bg-primary-50/50 rounded-2xl border border-primary-100 animate-in zoom-in-95 duration-200">
+                                <select
+                                  className="flex-1 bg-transparent border-none text-xs font-bold text-primary-700 focus:ring-0 cursor-pointer"
+                                  value={moveTargetById[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom')}
+                                  onChange={(e) => setMoveTargetById((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                                >
+                                  <option value="custom">移动至：自定义角色库</option>
+                                  {scriptGroups.map((g) => (
+                                    <option key={g.scriptId} value={g.scriptId}>移动至：{g.title}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="px-4 py-1.5 bg-primary-600 text-white text-[10px] font-black rounded-lg shadow-md active:scale-95 transition-all"
+                                  onClick={() => {
+                                    const target = moveTargetById[c.id] ?? (c.sourceType === 'custom' ? 'custom' : c.sourceScriptId || 'custom');
+                                    handleMoveCharacter(c, target);
+                                    setMoveOpenForId(null);
+                                  }}
+                                >
+                                  确认
+                                </button>
+                              </div>
+                            )}
+
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5 px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">匹配关键词</label>
+                                <Search size={10} className="text-slate-300" />
+                              </div>
+                              <input
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:border-primary-400 focus:ring-4 focus:ring-primary-500/5 transition-all outline-none shadow-sm"
+                                defaultValue={(c.matchNames || [c.name]).join(', ')}
+                                onBlur={(e) => handleUpdateMatchNames(c, e.target.value)}
+                                placeholder="输入脚本中可能出现的称呼..."
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="text-xs text-gray-400 mt-2">
-                        更新：{new Date(c.updatedAt || c.createdAt).toLocaleString()}
+                      <div className="absolute top-4 right-6 text-[10px] font-bold text-slate-300 pointer-events-none uppercase">
+                        Updated {new Date(c.updatedAt || c.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   ))}
@@ -433,51 +524,88 @@ export default function CharacterLibrary() {
 
       {/* 新增自定义角色：独立页面 */}
       {view === 'create' && (
-        <div className="space-y-4">
+        <div className="max-w-3xl mx-auto space-y-8">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-800">新增自定义角色（生成立绘）</h2>
-            <button className="btn-secondary" onClick={() => setView('groups')}>返回</button>
+            <div className="flex items-center gap-4">
+              <button className="p-2 hover:bg-white rounded-xl transition-all shadow-sm border border-slate-100" onClick={() => setView('groups')}>
+                <ChevronLeft size={24} />
+              </button>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">定妆新角色</h2>
+            </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-6 border-2 border-purple-200">
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">角色名</label>
-                <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：青风" />
+          <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-primary-500/5 p-10 border border-slate-100">
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <label className="block text-sm font-black text-slate-700 uppercase tracking-wider ml-1">角色姓名</label>
+                  <div className="relative group">
+                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+                    <input className="input-field !pl-12" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：青风" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-black text-slate-700 uppercase tracking-wider ml-1">匹配关键词</label>
+                  <div className="relative group">
+                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
+                    <input className="input-field !pl-12" value={matchNames} onChange={(e) => setMatchNames(e.target.value)} placeholder="称呼，用逗号分隔" />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">身份/关系/年龄（建议写清）</label>
-                <textarea className="textarea-field" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="例如：舅舅，成年男性，温柔耐心" />
+              <div className="space-y-2">
+                <label className="block text-sm font-black text-slate-700 uppercase tracking-wider ml-1">身份设定 (Identity)</label>
+                <textarea className="textarea-field" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="例如：舅舅，成年男性，温柔耐心" />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">外观要点（跨帧固定）</label>
-                <textarea className="textarea-field" rows={3} value={visual} onChange={(e) => setVisual(e.target.value)} placeholder="例如：短黑发，蓝色外套+白T，戴手表，圆脸大眼" />
+              <div className="space-y-2">
+                <label className="block text-sm font-black text-slate-700 uppercase tracking-wider ml-1">视觉特征 (Visual Assets)</label>
+                <div className="relative group">
+                  <Wand2 size={18} className="absolute left-4 top-4 text-slate-400 group-focus-within:text-violet-500 transition-colors" />
+                  <textarea className="textarea-field !pl-12" rows={3} value={visual} onChange={(e) => setVisual(e.target.value)} placeholder="例如：短黑发，蓝色外套+白T，戴手表，圆脸大眼" />
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold ml-1">这些特征将作为强制约束注入 AI 提示词中</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">匹配名（用于对话 role 匹配，可选）</label>
-                <input className="input-field" value={matchNames} onChange={(e) => setMatchNames(e.target.value)} placeholder="逗号分隔，例如：舅舅青风,青风叔叔" />
-                <p className="text-xs text-gray-500 mt-1">默认会包含角色名本身；建议把“分镜/对话里可能出现的称呼”都加上。</p>
-              </div>
+              <div className="pt-4 border-t border-slate-50 space-y-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-black text-slate-700 uppercase tracking-wider ml-1 text-center">选择画风模型</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {PORTRAIT_MODELS.slice(0, 4).map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => setModel(m.value)}
+                        className={`p-4 rounded-2xl border-2 text-sm font-bold transition-all ${
+                          model === m.value 
+                            ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-md' 
+                            : 'border-slate-100 hover:border-primary-200 text-slate-500'
+                        }`}
+                      >
+                        {m.label.split('（')[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">立绘生成模型</label>
-                <select className="w-full p-3 border-2 border-gray-200 rounded-lg" value={model} onChange={(e) => setModel(e.target.value as GenerationModel)}>
-                  {PORTRAIT_MODELS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
+                <button
+                  className="btn-primary w-full !py-5 rounded-2xl flex items-center justify-center gap-3 text-lg font-black shadow-xl shadow-primary-200"
+                  disabled={isGenerating}
+                  onClick={handleCreateAndGenerate}
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw size={24} className="animate-spin" />
+                      正在塑造形象...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={24} />
+                      立即生成角色立绘
+                    </>
+                  )}
+                </button>
               </div>
-
-              <button
-                className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isGenerating}
-                onClick={handleCreateAndGenerate}
-              >
-                {isGenerating ? '生成中...' : '生成角色立绘'}
-              </button>
             </div>
           </div>
         </div>

@@ -10,23 +10,28 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-gradient-to-r from-soft-pink-400 to-soft-purple-400 hover:from-soft-pink-500 hover:to-soft-purple-500 text-white font-medium py-2.5 px-6 rounded-full transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105;
+    @apply bg-gradient-to-r from-primary-600 to-brand-violet hover:from-primary-700 hover:to-brand-violet text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-300 shadow-md hover:shadow-xl transform hover:-translate-y-0.5 active:scale-95;
   }
   
   .btn-secondary {
-    @apply bg-white hover:bg-soft-pink-50 text-gray-700 font-medium py-2.5 px-6 rounded-full border-2 border-soft-pink-200 transition-all duration-200;
+    @apply bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-6 rounded-xl border-2 border-slate-100 transition-all duration-300 hover:border-primary-200 hover:shadow-md;
   }
   
   .card {
-    @apply bg-white rounded-2xl shadow-lg p-6 border-2 border-soft-pink-100;
+    @apply bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm p-6 border border-slate-100 hover:shadow-md transition-shadow duration-300;
   }
   
   .input-field {
-    @apply w-full px-4 py-2.5 border-2 border-soft-pink-200 rounded-full focus:ring-2 focus:ring-soft-pink-400 focus:border-soft-pink-400 outline-none transition-all bg-soft-pink-50;
+    @apply w-full px-4 py-3 border-2 border-slate-100 rounded-xl focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all bg-slate-50/50 placeholder:text-slate-400 text-slate-700;
   }
   
   .textarea-field {
-    @apply w-full px-4 py-2.5 border-2 border-soft-pink-200 rounded-2xl focus:ring-2 focus:ring-soft-pink-400 focus:border-soft-pink-400 outline-none transition-all resize-none bg-soft-pink-50;
+    @apply w-full px-4 py-3 border-2 border-slate-100 rounded-2xl focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none transition-all resize-none bg-slate-50/50 placeholder:text-slate-400 text-slate-700;
+  }
+
+  /* 现代玻璃拟态效果 */
+  .glass-effect {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
   }
 
   /* 动漫风格动画 */

@@ -6,6 +6,17 @@ import ComicPageCanvas, { ComicPageCanvasRef } from '@/components/ComicPageCanva
 import { downloadCanvasesAsZip } from '@/lib/downloadUtils';
 import { saveComicBookToStorage } from '@/lib/scriptUtils';
 import { renderComicPageToCanvas } from '@/lib/comicPageRenderer';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Download, 
+  Archive, 
+  Edit3, 
+  BookOpen, 
+  Keyboard,
+  Loader2,
+  Image as ImageIcon
+} from 'lucide-react';
 
 interface ComicViewerProps {
   comicBook: ComicBook;
@@ -115,20 +126,25 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
   }, [currentPageIndex, currentComicBook.pages.length]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-cyan-50 py-4 sm:py-6 lg:py-8">
-      <div className="max-w-6xl mx-auto px-2 sm:px-4">
-        {/* 顶部导航栏 */}
-        <div className="flex flex-col sm:flex-row items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+    <div className="min-h-screen bg-[#f8fafc] py-8">
+      <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
+        {/* 顶部导航栏 - 现代化布局 */}
+        <div className="flex flex-col lg:flex-row items-center justify-between mb-10 gap-6">
           <button
             onClick={onBack}
-            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 hover:from-purple-200 hover:to-pink-200 font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 text-xs sm:text-sm w-full sm:w-auto"
+            className="group flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold"
           >
-            ← 返回
+            <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+            返回作品集
           </button>
+
           <div className="text-center flex-1">
-            <div className="flex items-center justify-center gap-2">
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 bg-clip-text text-transparent line-clamp-1">
-                📖 {currentComicBook.title || '绘本查看'}
+            <div className="flex items-center justify-center gap-3">
+              <div className="p-2 bg-primary-50 rounded-lg text-primary-600">
+                <BookOpen size={20} />
+              </div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight line-clamp-1">
+                {currentComicBook.title || '无标题绘本'}
               </h2>
               <button
                 onClick={async () => {
@@ -141,130 +157,158 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
                     };
                     await saveComicBookToStorage(updatedComicBook);
                     setCurrentComicBook(updatedComicBook);
-                    if (onComicBookUpdate) {
-                      onComicBookUpdate(updatedComicBook);
-                    }
+                    onComicBookUpdate?.(updatedComicBook);
                   }
                 }}
-                className="text-purple-600 hover:text-purple-700 text-xs sm:text-sm"
+                className="p-2 text-slate-400 hover:text-primary-500 hover:bg-primary-50 rounded-lg transition-all"
                 title="重命名绘本"
               >
-                ✏️
+                <Edit3 size={16} />
               </button>
             </div>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              第 {currentPageIndex + 1} 页 / 共 {currentComicBook.pages.length} 页
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">
+                PAGE {currentPageIndex + 1} / {currentComicBook.pages.length}
+              </span>
+            </div>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+
+          <div className="flex items-center gap-3">
             <button
               onClick={handleDownloadCurrentPage}
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 text-xs sm:text-sm"
-              title="下载当前页"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold"
+              title="导出当前页"
             >
-              ⬇️ <span className="hidden sm:inline">下载当前页</span>
+              <Download size={18} />
+              <span className="hidden sm:inline">导出单页</span>
             </button>
             <button
               onClick={handleDownloadAllPages}
               disabled={isDownloading}
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 font-medium transition-all shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
-              title="下载整本绘本"
+              className="btn-primary flex items-center gap-2 !py-2.5 !px-6 !rounded-xl"
+              title="打包下载整本"
             >
-              {isDownloading ? '⏳ 打包中...' : (
-                <span>📦 <span className="hidden sm:inline">下载整本</span></span>
+              {isDownloading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  打包中...
+                </>
+              ) : (
+                <>
+                  <Archive size={18} />
+                  <span>下载全集 (ZIP)</span>
+                </>
               )}
             </button>
           </div>
         </div>
 
-        {/* 绘本页面显示区域 */}
-        <div className="bg-white/90 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-2xl p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6 border-2 border-purple-200">
-          {currentPage ? (
-            <div className="flex flex-col items-center">
-              <ComicPageCanvas
-                ref={(ref) => registerCanvasRef(currentPageIndex, ref)}
-                page={currentPage}
-                className="w-full max-w-4xl"
-              />
-              
-              {/* 页面信息 */}
-              <div className="mt-4 w-full max-w-4xl">
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
-                  <p className="text-sm text-gray-700 font-medium mb-2">
-                    <span className="text-purple-600 font-bold">第 {currentPage.pageNumber} 页</span>
-                  </p>
+        {/* 绘本展示核心区 */}
+        <div className="relative group">
+          <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 p-4 md:p-8 lg:p-12 mb-10 border border-slate-100">
+            {currentPage ? (
+              <div className="flex flex-col items-center max-w-5xl mx-auto space-y-10">
+                <div className="w-full relative rounded-2xl overflow-hidden shadow-2xl shadow-primary-500/10 border border-slate-100">
+                  <ComicPageCanvas
+                    ref={(ref) => registerCanvasRef(currentPageIndex, ref)}
+                    page={currentPage}
+                    className="w-full h-auto"
+                  />
+                </div>
+                
+                {/* 页面解说词卡片 */}
+                <div className="w-full bg-slate-50/50 rounded-3xl p-8 border border-slate-100/50">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-1.5 h-4 bg-primary-500 rounded-full"></div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Story Context</span>
+                  </div>
                   {currentPage.text && (
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{currentPage.text}</p>
+                    <p className="text-slate-600 text-base leading-relaxed font-medium">
+                      {currentPage.text}
+                    </p>
                   )}
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📖</div>
-              <p className="text-gray-600">没有可显示的页面</p>
-            </div>
-          )}
+            ) : (
+              <div className="py-32 text-center">
+                <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <ImageIcon size={40} className="text-slate-200" />
+                </div>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No pages to display</p>
+              </div>
+            )}
+          </div>
+
+          {/* 悬浮侧边翻页按钮 - 桌面端 */}
+          <button
+            onClick={goToPreviousPage}
+            disabled={currentPageIndex === 0}
+            className="hidden lg:flex absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-white border border-slate-100 shadow-xl rounded-2xl items-center justify-center text-slate-400 hover:text-primary-600 hover:border-primary-200 disabled:opacity-0 transition-all active:scale-90"
+          >
+            <ChevronLeft size={32} />
+          </button>
+          <button
+            onClick={goToNextPage}
+            disabled={currentPageIndex === currentComicBook.pages.length - 1}
+            className="hidden lg:flex absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-white border border-slate-100 shadow-xl rounded-2xl items-center justify-center text-slate-400 hover:text-primary-600 hover:border-primary-200 disabled:opacity-0 transition-all active:scale-90"
+          >
+            <ChevronRight size={32} />
+          </button>
         </div>
 
-        {/* 底部控制栏 */}
-        <div className="bg-white/90 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-xl p-3 sm:p-4 border-2 border-purple-200">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-            {/* 上一页按钮 */}
+        {/* 底部现代化控制台 */}
+        <div className="glass-effect !bg-white/80 rounded-[2.5rem] p-6 border border-slate-200 shadow-xl">
+          <div className="flex flex-col md:flex-row items-center gap-6">
             <button
               onClick={goToPreviousPage}
               disabled={currentPageIndex === 0}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 text-white font-medium hover:from-purple-600 hover:via-pink-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs sm:text-sm lg:text-base"
+              className="w-full md:w-auto px-8 py-3.5 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 text-sm"
             >
-              ← 上一页
+              前一页
             </button>
 
-            {/* 页面缩略图导航 */}
-            <div className="flex-1 w-full sm:w-auto mx-0 sm:mx-4 lg:mx-6 overflow-x-auto">
-              <div className="flex gap-1 sm:gap-2 justify-center">
+            {/* 现代化缩略图指示器 */}
+            <div className="flex-1 w-full overflow-x-auto py-2 scrollbar-hide">
+              <div className="flex gap-3 justify-center">
                 {currentComicBook.pages.map((page, index) => (
                   <button
                     key={index}
                     onClick={() => goToPage(index)}
-                    className={`flex-shrink-0 w-12 h-14 sm:w-14 sm:h-18 lg:w-16 lg:h-20 rounded-md sm:rounded-lg overflow-hidden border-2 transition-all transform hover:scale-110 ${
+                    className={`relative shrink-0 w-12 h-16 rounded-xl overflow-hidden border-2 transition-all duration-300 transform ${
                       index === currentPageIndex
-                        ? 'border-purple-500 shadow-lg scale-110'
-                        : 'border-gray-300 hover:border-purple-300'
+                        ? 'border-primary-500 ring-4 ring-primary-500/10 scale-110 shadow-lg'
+                        : 'border-slate-100 hover:border-primary-200 grayscale opacity-60 hover:grayscale-0 hover:opacity-100'
                     }`}
                   >
                     {page.imageUrl ? (
-                      <img
-                        src={page.imageUrl}
-                        alt={`第${page.pageNumber}页`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gray-200 text-xs">📖</div>';
-                        }}
-                      />
+                      <img src={page.imageUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-200 text-xs">
-                        📖
+                      <div className="w-full h-full bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-300">
+                        {index + 1}
                       </div>
+                    )}
+                    {index === currentPageIndex && (
+                      <div className="absolute inset-0 bg-primary-500/10 pointer-events-none"></div>
                     )}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* 下一页按钮 */}
             <button
               onClick={goToNextPage}
               disabled={currentPageIndex === currentComicBook.pages.length - 1}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 text-white font-medium hover:from-purple-600 hover:via-pink-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none text-xs sm:text-sm lg:text-base"
+              className="w-full md:w-auto px-8 py-3.5 rounded-2xl bg-primary-600 text-white font-bold hover:bg-primary-700 shadow-lg shadow-primary-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 text-sm"
             >
-              下一页 →
+              下一页
             </button>
           </div>
 
-          {/* 键盘快捷键提示 */}
-          <div className="mt-3 sm:mt-4 text-center text-xs text-gray-500">
-            <p className="hidden sm:block">💡 提示：使用 ← → 方向键可以翻页</p>
+          <div className="mt-6 flex items-center justify-center gap-2 text-slate-400">
+            <Keyboard size={14} />
+            <p className="text-[10px] font-bold uppercase tracking-widest">
+              Pro Tip: Use arrow keys to flip pages
+            </p>
           </div>
         </div>
       </div>
