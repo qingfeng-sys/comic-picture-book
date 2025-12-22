@@ -223,6 +223,7 @@ export async function generateOutline(
 **严格规则：**
 1) 只输出 JSON 对象；不要任何解释、说明、markdown 代码块标记
 2) JSON 必须严格符合下方 Schema（字段名必须一致）
+3) **性别与外貌准确性**：必须根据角色关系（如“哥哥”、“弟弟”、“舅舅”）准确设定性别特征。**严禁**为男性角色添加明显的女性化外貌描述（如扎辫子、穿裙子等，除非用户特别要求）。
 
 Schema:
 {
@@ -261,9 +262,9 @@ Schema:
   ];
 
   const candidates: ModelCandidate[] = [
-    { model: 'qwen-flash', options: { enable_thinking: false } },
-    { model: 'qwen3-30b-a3b-instruct-2507' },
-    { model: 'deepseek-r1-distill-qwen-14b' },
+    { model: 'qwen-max' },
+    { model: 'deepseek-v3' },
+    { model: 'qwen2.5-72b-instruct' },
   ];
 
   const result = await callWithModelFallback('outline', candidates, messages, {
@@ -305,7 +306,8 @@ export async function generateScriptFromOutline(
 - 总页数建议 8-12 页
 - 对白简短、儿童友好（如目标读者是儿童）
 - 场景描述要可视化、便于画面生成
-- **角色一致性硬约束**：必须严格遵守大纲中的角色表（姓名/关系/年龄段/外观要点）。后续每页都要保持人物外观与身份一致（不要把成年人画成小孩，不要换性别/发型/服装风格）
+- **角色一致性与性别硬约束**：必须严格遵守大纲中的角色表（姓名/关系/年龄段/外观要点）。后续每页都要保持人物外观与身份一致。**严禁性别错乱**，例如“弟弟/哥哥/舅舅”等男性角色必须具备清晰的男性特征，禁止出现辫子、长发、裙子等违背角色身份的描述。
+- **外观稳定性**：在每一页的人物描述中，固定使用相同的关键词描述外观，确保 AI 生成图片时角色不走样。
 `;
 
   const userContent = `这是故事大纲(JSON)：\n${JSON.stringify(outline, null, 2)}\n\n请按要求输出剧本。`;
@@ -317,10 +319,9 @@ export async function generateScriptFromOutline(
   ];
 
   const candidates: ModelCandidate[] = [
+    { model: 'deepseek-v3' },
+    { model: 'qwen-max' },
     { model: 'qwen2.5-72b-instruct' },
-    { model: 'deepseek-v3.2' },
-    { model: 'deepseek-r1-distill-qwen-32b' },
-    { model: 'deepseek-r1-distill-qwen-14b' },
   ];
 
   const result = await callWithModelFallback('script', candidates, messages, {
@@ -377,8 +378,9 @@ export async function generateStoryboard(
 4. 直接输出JSON对象，格式必须完全符合以下Schema
 5. **严禁对白错配**：dialogues 中每条对话的 role 必须是真正说话者，text 必须是该角色说的话；不要把 A 的话写到 B 的 role 下
 6. **坐标必须对应说话者头部**：x_ratio/y_ratio 代表该 role 角色的头部位置；不要随意填数
-7. **角色一致性硬约束**：必须严格遵守“角色表”，并在每个 frame 的 image_prompt 里明确写出关键视觉特征，确保跨帧一致
-   - 例如：舅舅=成年男性（更高更壮、成年脸型/胡茬可选）、外甥=儿童（更矮更小、童装）
+7. **角色一致性与性别硬约束**：必须严格遵守“角色表”，并在每个 frame 的 image_prompt 里明确写出关键视觉特征，确保跨帧一致。
+   - **严禁性别反转描述**：男性角色（哥哥、弟弟、舅舅等）禁止出现女性化外貌（如辫子、粉色裙子、长发等，除非设定如此）。
+   - 例如：舅舅=成年男性（更高更壮、短发、成年脸型/胡茬可选）、外甥=小男孩（短发、活泼、童装）。
    - 同一角色的发型/服装配色/年龄段必须保持一致
 
 **输出格式（必须是这个结构）：**
@@ -460,11 +462,11 @@ export async function generateStoryboard(
       },
     ];
 
-    const candidates: ModelCandidate[] = [
-      { model: 'qwen3-next-80b-a3b-instruct' },
-      { model: 'qwen2.5-72b-instruct' },
-      { model: 'qwen3-max' },
-    ];
+  const candidates: ModelCandidate[] = [
+    { model: 'qwen-max' },
+    { model: 'deepseek-v3' },
+    { model: 'qwen2.5-72b-instruct' },
+  ];
 
     const result = await callWithModelFallback('storyboard', candidates, messages, {
       temperature: 0.7,

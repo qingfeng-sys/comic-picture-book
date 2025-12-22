@@ -12,6 +12,7 @@ interface ComicPageCanvasProps {
 export interface ComicPageCanvasRef {
   getCanvas: () => HTMLCanvasElement | null;
   download: (filename?: string) => void;
+  getDimensions: () => { width: number; height: number } | null;
 }
 
 /**
@@ -102,6 +103,11 @@ const ComicPageCanvas = forwardRef<ComicPageCanvasRef, ComicPageCanvasProps>(
   // 暴露canvas ref和方法
   useImperativeHandle(ref, () => ({
     getCanvas: () => canvasRef.current,
+    getDimensions: () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      return { width: canvas.width, height: canvas.height };
+    },
     download: (filename?: string) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
