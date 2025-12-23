@@ -100,6 +100,7 @@ export interface ApiResponse<T> {
 export interface CharacterProfile {
   id: string;
   name: string; // 角色名（用于和分镜 dialogues.role 匹配）
+  role?: string; // 角色定位：主角、配角等
   description?: string; // 性格/身份/关系等
   visual?: string; // 外观要点（服装/发型/配色等）
   matchNames?: string[]; // 可选：用于匹配 dialogues.role 的别名列表

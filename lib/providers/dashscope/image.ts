@@ -4,6 +4,8 @@ import { GenerationModel, WAN_GENERATION_MODELS } from '@/types';
 const WAN_API_BASE = 'https://dashscope.aliyuncs.com/api/v1';
 const WAN_SERVICE_PATH = '/services/aigc/text2image/image-synthesis';
 const WAN_I2I_SERVICE_PATH = '/services/aigc/image2image/image-synthesis';
+// 2.6 系列专用路径
+const WAN_26_SERVICE_PATH = '/services/aigc/image-generation/generation';
 const REQUEST_TIMEOUT_MS = 12_000;
 const POLL_INTERVAL_MS = 3_000;
 const MAX_POLL_ATTEMPTS = 40; // 约2分钟
@@ -82,51 +84,75 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
   const apiKey = resolveWanApiKey();
   const cleanPrompt = normalizePrompt(prompt);
 
-  const payload: any = {
-    model: options.model,
-    input: {
-      prompt: cleanPrompt,
-    },
-    parameters: {
-      size: options.size || '1024*1024',
-      n: 1,
-    },
-  };
-
-  // 根据模型选择服务路径 & 参考图字段
+  let payload: any;
   let servicePath = WAN_SERVICE_PATH;
 
-  // I2I：wan2.5-i2i-preview
-  if (options.model === 'wan2.5-i2i-preview') {
-    servicePath = WAN_I2I_SERVICE_PATH;
-    // i2i 不一定支持/需要 size，移除以避免 400
-    delete payload.parameters.size;
-    // 参考 curl 示例：prompt_extend=true
-    payload.parameters.prompt_extend = true;
+  // 1. 针对 wan2.6-image 的多模态/多图参考处理
+  if (options.model === 'wan2.6-image') {
+    servicePath = WAN_26_SERVICE_PATH;
+    const contents: any[] = [{ text: cleanPrompt }];
+    
+    // 如果有参考图，按 messages 格式注入
     if (options.image_reference) {
       const refs = Array.isArray(options.image_reference) ? options.image_reference : [options.image_reference];
-      payload.input.images = refs.map((r) => normalizeI2IImageInput(r));
+      // 根据文档：当 enable_interleave=false (参考图生图) 时，必须输入 1~3 张图像
+      refs.slice(0, 3).forEach(ref => {
+        contents.push({ image: normalizeI2IImageInput(ref) });
+      });
     }
-    // i2i 的参数校验更严格：先不传 negative_prompt（部分版本会导致 InvalidParameter 且报错信息不直观）
-    // 需要时可后续根据官方文档再开启
-    // Debug: 打印 images 数量/类型，避免“看起来传了5张但服务端认为不合法”的情况
-    const imgs: any[] = Array.isArray(payload.input.images) ? payload.input.images : [];
-    const summary = imgs.slice(0, 6).map((s) => {
-      const str = typeof s === 'string' ? s : '';
-      const kind =
-        str.startsWith('http') ? 'url' : str.startsWith('data:') ? 'dataurl' : str.startsWith('base64://') ? 'base64' : 'other';
-      return { kind, len: str.length, head: str.slice(0, 18) };
-    });
-    console.log('[DashScope i2i] images.length=', imgs.length, 'summary=', summary);
-  }
 
-  // T2I + ref：wanx-v1
-  if (options.model === 'wanx-v1' && options.image_reference && !Array.isArray(options.image_reference)) {
-    payload.input.ref_img = options.image_reference;
-  }
-  // negative_prompt：仅对文生图透传到 input（避免 i2i 参数不兼容）
-  if (options.model !== 'wan2.5-i2i-preview' && options.negative_prompt) {
-    payload.input.negative_prompt = options.negative_prompt;
+    payload = {
+      model: options.model,
+      input: {
+        messages: [
+          {
+            role: 'user',
+            content: contents
+          }
+        ]
+      },
+      parameters: {
+        size: options.size || '1024*1024',
+        n: 1,
+        // enable_interleave: false 代表“参考图模式”，true 代表“图文混合模式”
+        enable_interleave: options.image_reference ? false : true,
+        prompt_extend: true,
+        watermark: false
+      }
+    };
+  } else {
+    // 2. 传统模型的平铺结构兼容
+    payload = {
+      model: options.model,
+      input: {
+        prompt: cleanPrompt,
+      },
+      parameters: {
+        size: options.size || '1024*1024',
+        n: 1,
+      },
+    };
+
+    // I2I 专用路径：wan2.5-i2i-preview
+    if (options.model === 'wan2.5-i2i-preview') {
+      servicePath = WAN_I2I_SERVICE_PATH;
+      delete payload.parameters.size;
+      payload.parameters.prompt_extend = true;
+      if (options.image_reference) {
+        const refs = Array.isArray(options.image_reference) ? options.image_reference : [options.image_reference];
+        payload.input.images = refs.map((r) => normalizeI2IImageInput(r));
+      }
+    }
+
+    // T2I + ref 兼容：wanx-v1
+    if (options.model === 'wanx-v1' && options.image_reference && !Array.isArray(options.image_reference)) {
+      payload.input.ref_img = options.image_reference;
+    }
+    
+    // negative_prompt 注入
+    if (options.model !== 'wan2.5-i2i-preview' && options.negative_prompt) {
+      payload.input.negative_prompt = options.negative_prompt;
+    }
   }
 
   const headers = {
@@ -153,6 +179,7 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
     data?.id;
 
   const immediateUrl =
+    data?.output?.choices?.[0]?.message?.content?.[0]?.image ||
     data?.output?.results?.[0]?.url ||
     data?.output?.results?.[0]?.image_url ||
     data?.output?.image_url ||
@@ -191,6 +218,7 @@ export async function getWanTaskResult(taskId: string): Promise<WanTaskResult> {
     data.task_status;
 
   const imageUrl =
+    output.choices?.[0]?.message?.content?.[0]?.image ||
     output.results?.[0]?.url ||
     output.results?.[0]?.image_url ||
     output.image_url ||

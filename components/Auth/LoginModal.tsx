@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { type User } from '@/lib/authUtils'; 
 import { X, Lock, User as UserIcon, Smile, Loader2, Sparkles } from 'lucide-react';
 
 interface LoginModalProps {

@@ -48,7 +48,7 @@ const MODEL_OPTIONS: Array<{
   {
     value: 'wan2.6-image',
     label: '万相 wan2.6-image',
-    description: '通用文生图模型（不走参考图），适合高质量场景插图',
+    description: '旗舰级多模态模型，支持 1-3 张参考图，极致画质与一致性',
     isAsync: true,
   },
   {
@@ -91,6 +91,9 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
   const [selectedScript, setSelectedScript] = useState<ScriptWithSegments | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationStatus, setGenerationStatus] = useState<string>('');
+  const [generationLogs, setGenerationLogs] = useState<Array<{ type: 'info' | 'success' | 'error', message: string }>>([]);
   const [generatedPages, setGeneratedPages] = useState<ComicPage[]>([]);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
@@ -248,6 +251,13 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
     }
   };
 
+  useEffect(() => {
+    if (isGenerating) {
+      const el = document.getElementById('logs-end');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [generationLogs, isGenerating]);
+
   const handleScriptSelect = (script: Script) => {
     // 选择已保存脚本时：保留原始 id/时间戳，避免“选中态”无法高亮/混淆
     setExtraVisibleCharacterIds([]);
@@ -297,17 +307,94 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
     setImportText('');
   };
 
+  const handleRegeneratePage = async (index: number) => {
+    const pageToRegenerate = generatedPages[index];
+    if (!pageToRegenerate || !selectedScript) return;
+
+    const newPrompt = prompt('您可以微调提示词（留空使用原提示词）：', pageToRegenerate.text);
+    if (newPrompt === null) return;
+
+    const updatedPages = [...generatedPages];
+    // 设置该页为“加载中”状态 (可选，通过 UI 标识)
+    
+    setGenerationLogs(prev => [...prev, { type: 'info', message: `重新生成第 ${pageToRegenerate.pageNumber} 页...` }]);
+
+    try {
+      const storyboardData = extractStoryboardFromScript(selectedScript.content);
+      let requestBody: any;
+
+      if (storyboardData) {
+        const frame = { ...storyboardData.frames.find(f => f.frame_id === pageToRegenerate.pageNumber) };
+        if (frame) {
+          if (newPrompt.trim()) frame.image_prompt = newPrompt.trim();
+          requestBody = { storyboard: { frames: [frame] } };
+        }
+      }
+
+      if (!requestBody) {
+        requestBody = { scriptSegment: `第${pageToRegenerate.pageNumber}页：${newPrompt.trim() || pageToRegenerate.text}` };
+      }
+
+      const selectedProfiles = visibleCharacters.filter((c) => selectedCharacterIds.includes(c.id));
+      const characterReferencesToSend =
+        useCharacterReferences && generationModel === 'wan2.5-i2i-preview'
+          ? await buildCharacterReferenceMapForI2I(selectedProfiles)
+          : characterReferences;
+
+      const selectedForRef = visibleCharacters
+        .filter((c) => selectedCharacterIds.includes(c.id) && !!c.referenceImageUrl)
+        .map((c) => c.referenceImageUrl!)
+        .slice(0, 5);
+
+      const referenceImagesToSend =
+        useCharacterReferences && generationModel === 'wan2.5-i2i-preview'
+          ? (await Promise.all(selectedForRef.map((src) => toJpegDataUrlSafe(src)))).filter(Boolean)
+          : undefined;
+
+      const response = await fetch('/api/comic/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...requestBody,
+          startPageNumber: pageToRegenerate.pageNumber,
+          scriptId: selectedScript.id,
+          model: generationModel,
+          characterReferences: characterReferencesToSend,
+          referenceImages: referenceImagesToSend,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success && result.data?.pages?.length > 0) {
+        updatedPages[index] = result.data.pages[0];
+        setGeneratedPages(updatedPages);
+        setGenerationLogs(prev => [...prev, { type: 'success', message: `✅ 第 ${pageToRegenerate.pageNumber} 页重新生成成功` }]);
+        
+        // 更新数据库中的绘本
+        const comicBook = {
+          scriptId: selectedScript.id,
+          segmentId: selectedSegmentId,
+          title: selectedScript.title,
+          pages: updatedPages,
+        };
+        await saveComicBookToStorage(comicBook);
+      } else {
+        alert(result.error || '重新生成失败');
+      }
+    } catch (error: any) {
+      alert(`重新生成失败: ${error.message}`);
+    }
+  };
   const handleGenerateComic = async () => {
     if (!selectedScript || selectedSegmentId === null) {
       alert('请选择脚本和片段');
       return;
     }
 
-    // 如果启用了参考图但没有任何可用 referenceImageUrl，提示用户先生成立绘或关闭开关
     if (useCharacterReferences) {
       const hasAnyRef = characters.some((c) => !!c.referenceImageUrl);
       if (!hasAnyRef) {
-        alert('已启用“角色参考图”，但当前角色库没有任何立绘。请先点击“生成角色立绘”，或关闭该开关后继续生成绘本。');
+        alert('已启用“角色参考图”，但当前角色库没有任何立绘。请先点击“同步角色形象”，或关闭该开关后继续生成绘本。');
         return;
       }
     }
@@ -320,107 +407,125 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
 
     setIsGenerating(true);
     setGeneratedPages([]);
+    setGenerationProgress(0);
+    setGenerationLogs([{ type: 'info', message: '🚀 准备开始生成绘本...' }]);
 
     try {
-      // i2i 场景：把角色库中的本地 PNG 立绘提前压缩为 JPEG dataURL，
-      // 避免后端把大 PNG 转 base64 导致 DashScope DataInspection 长度超限。
       const selectedProfiles = visibleCharacters.filter((c) => selectedCharacterIds.includes(c.id));
+      const isMultiModalModel = generationModel === 'wan2.5-i2i-preview' || generationModel === 'wan2.6-image';
+      
       const characterReferencesToSend =
-        useCharacterReferences && generationModel === 'wan2.5-i2i-preview'
+        useCharacterReferences && isMultiModalModel
           ? await buildCharacterReferenceMapForI2I(selectedProfiles)
           : characterReferences;
 
-      // i2i 模型必须带底图：直接使用多张立绘（input.images 支持数组），避免拼图带来的尺寸/审查限制
       const selectedForRef = visibleCharacters
         .filter((c) => selectedCharacterIds.includes(c.id) && !!c.referenceImageUrl)
         .map((c) => c.referenceImageUrl!)
         .slice(0, 5);
 
-      // DashScope i2i 对媒体格式/审查更敏感：将本地 PNG 统一转为 JPEG dataURL（更通用且体积更小）
       const referenceImagesToSend =
-        useCharacterReferences && generationModel === 'wan2.5-i2i-preview'
+        useCharacterReferences && isMultiModalModel
           ? (await Promise.all(selectedForRef.map((src) => toJpegDataUrlSafe(src)))).filter(Boolean)
           : undefined;
 
-      if (generationModel === 'wan2.5-i2i-preview' && (!referenceImagesToSend || referenceImagesToSend.length === 0)) {
-        alert('当前选择的是 wan2.5-i2i-preview（图生图），必须提供至少 1 张立绘作为底图。请先生成立绘或切换模型。');
-        setIsGenerating(false);
-        return;
+      if (isMultiModalModel && useCharacterReferences && (!referenceImagesToSend || referenceImagesToSend.length === 0)) {
+        console.warn('当前选择的是多模态模型，但未提供有效的参考图');
       }
 
-      // 尝试从脚本中提取分镜数据
       const storyboardData = extractStoryboardFromScript(selectedScript.content);
-      
-      let requestBody: any;
+      const allPages: ComicPage[] = [];
       
       if (storyboardData) {
-        // 如果有分镜数据，使用分镜数据生成
-        console.log('检测到分镜数据，使用分镜模式生成');
-        // 根据segmentId选择对应的frames
         const startFrameIndex = (selectedSegmentId - 1) * 10;
-        const endFrameIndex = startFrameIndex + 10;
-        const segmentFrames = storyboardData.frames.slice(startFrameIndex, endFrameIndex);
+        const segmentFrames = storyboardData.frames.slice(startFrameIndex, startFrameIndex + 10);
         
         if (segmentFrames.length === 0) {
-          alert('该片段没有对应的分镜数据');
-          setIsGenerating(false);
-          return;
+          throw new Error('该片段没有对应的分镜数据');
         }
-        
-        requestBody = {
-          storyboard: {
-            frames: segmentFrames,
-          },
-          startPageNumber: (selectedSegmentId - 1) * 10 + 1,
-          scriptId: selectedScript.id,
-          segmentId: selectedSegmentId,
-          model: generationModel,
-          characterReferences: characterReferencesToSend,
-          referenceImages: referenceImagesToSend,
-        };
+
+        setGenerationLogs(prev => [...prev, { type: 'info', message: `检测到分镜数据，共 ${segmentFrames.length} 页，准备逐页生成...` }]);
+
+        for (let i = 0; i < segmentFrames.length; i++) {
+          const frame = segmentFrames[i];
+          const pageNumber = (selectedSegmentId - 1) * 10 + i + 1;
+          
+          setGenerationStatus(`正在生成第 ${pageNumber} 页...`);
+          setGenerationLogs(prev => [...prev, { type: 'info', message: `正在生成第 ${pageNumber} 页：${frame.image_prompt.substring(0, 30)}...` }]);
+
+          const response = await fetch('/api/comic/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              storyboard: { frames: [frame] },
+              startPageNumber: pageNumber,
+              scriptId: selectedScript.id,
+              segmentId: selectedSegmentId,
+              model: generationModel,
+              characterReferences: characterReferencesToSend,
+              referenceImages: referenceImagesToSend,
+            }),
+          });
+
+          const result = await response.json();
+          if (result.success && result.data?.pages?.length > 0) {
+            const newPage = result.data.pages[0];
+            allPages.push(newPage);
+            setGeneratedPages([...allPages]);
+            setGenerationProgress(Math.round(((i + 1) / segmentFrames.length) * 100));
+            setGenerationLogs(prev => [...prev, { type: 'success', message: `✅ 第 ${pageNumber} 页生成成功` }]);
+          } else {
+            const errorMsg = result.error || '生成失败';
+            setGenerationLogs(prev => [...prev, { type: 'error', message: `❌ 第 ${pageNumber} 页生成失败: ${errorMsg}` }]);
+            if (!confirm(`第 ${pageNumber} 页生成失败：${errorMsg}。是否跳过此页继续？`)) {
+              break;
+            }
+          }
+        }
       } else {
-        // 否则使用文本模式（兼容旧格式）
-        console.log('未检测到分镜数据，使用文本模式生成');
-        requestBody = {
-          scriptSegment: segment.content,
-          startPageNumber: (selectedSegmentId - 1) * 10 + 1,
-          scriptId: selectedScript.id,
-          segmentId: selectedSegmentId,
-          model: generationModel,
-          characterReferences: characterReferencesToSend,
-          referenceImages: referenceImagesToSend,
-        };
+        // 文本模式 (退化处理)
+        setGenerationLogs(prev => [...prev, { type: 'info', message: '未检测到结构化分镜，使用传统模式一次性生成...' }]);
+        const response = await fetch('/api/comic/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scriptSegment: segment.content,
+            startPageNumber: (selectedSegmentId - 1) * 10 + 1,
+            scriptId: selectedScript.id,
+            segmentId: selectedSegmentId,
+            model: generationModel,
+            characterReferences: characterReferencesToSend,
+            referenceImages: referenceImagesToSend,
+          }),
+        });
+        const result = await response.json();
+        if (result.success && result.data?.pages) {
+          allPages.push(...result.data.pages);
+          setGeneratedPages(allPages);
+          setGenerationProgress(100);
+          setGenerationLogs(prev => [...prev, { type: 'success', message: '✅ 绘本全部生成成功' }]);
+        } else {
+          throw new Error(result.error || '生成失败');
+        }
       }
 
-      const response = await fetch('/api/comic/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      const result = await response.json();
-
-      if (result.success && result.data?.pages) {
-        const pages = result.data.pages;
-        setGeneratedPages(pages);
-        
-        // 保存生成的绘本到数据库
+      if (allPages.length > 0) {
         const comicBook = {
           scriptId: selectedScript.id,
           segmentId: selectedSegmentId,
-          title: selectedScript.title, // 默认使用脚本标题
-          pages: pages,
+          title: selectedScript.title,
+          pages: allPages,
         };
         await saveComicBookToStorage(comicBook);
-        console.log('绘本已保存到数据库');
-      } else {
-        alert(result.error || '生成失败');
+        setGenerationLogs(prev => [...prev, { type: 'success', message: '🎉 绘本已完整保存至数据库' }]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('生成绘本失败:', error);
-      alert('生成失败，请检查网络连接');
+      setGenerationLogs(prev => [...prev, { type: 'error', message: `🔥 发生严重错误: ${error.message || '未知错误'}` }]);
+      alert(`生成失败: ${error.message || '网络连接异常'}`);
     } finally {
       setIsGenerating(false);
+      setGenerationStatus('');
     }
   };
 
@@ -815,29 +920,70 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
                   </div>
                 </div>
               ) : isGenerating ? (
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <div className="relative mb-8">
-                    <div className="w-32 h-32 border-4 border-primary-100 border-t-primary-600 rounded-full animate-spin"></div>
-                    <div className="absolute inset-0 flex items-center justify-center text-primary-600">
-                      <Sparkles size={32} className="animate-pulse" />
+                <div className="flex-1 flex flex-col items-center justify-center animate-in fade-in duration-500">
+                  <div className="w-full max-w-lg space-y-10">
+                    <div className="relative flex justify-center">
+                      <div className="w-40 h-40 border-8 border-slate-50 border-t-primary-500 rounded-full animate-spin"></div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-black text-slate-800 tabular-nums">{generationProgress}%</span>
+                        <Sparkles size={24} className="text-primary-400 animate-pulse mt-1" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">
+                        <span>{generationStatus || 'AI 引擎正在全力工作中...'}</span>
+                        <span>{Math.round(generationProgress/10)} / 10 Stages</span>
+                      </div>
+                      <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-200/50 p-0.5">
+                        <div 
+                          className="h-full bg-gradient-to-r from-primary-500 via-brand-violet to-primary-500 rounded-full transition-all duration-500 shadow-sm"
+                          style={{ width: `${generationProgress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-3xl p-6 shadow-2xl overflow-hidden border border-slate-800">
+                      <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Live Engine Logs</span>
+                      </div>
+                      <div className="space-y-2 h-40 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-800 font-mono text-[11px]">
+                        {generationLogs.map((log, i) => (
+                          <div key={i} className={`flex items-start gap-3 animate-in slide-in-from-left-2 duration-300 ${
+                            log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-emerald-400' : 'text-slate-400'
+                          }`}>
+                            <span className="opacity-30 shrink-0">[{new Date().toLocaleTimeString([], { hour12: false })}]</span>
+                            <span className="leading-relaxed">{log.message}</span>
+                          </div>
+                        ))}
+                        <div id="logs-end" />
+                      </div>
                     </div>
                   </div>
-                  <p className="text-slate-800 text-xl font-black tracking-tight mb-2">正在渲染分镜资产...</p>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em]">AI processing active • Do not close tab</p>
                 </div>
               ) : generatedPages.length > 0 ? (
-                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 max-h-[800px] overflow-y-auto pr-4 scrollbar-thin">
-                  {generatedPages.map((page) => (
+                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 max-h-[1000px] overflow-y-auto pr-4 scrollbar-thin">
+                  {generatedPages.map((page, index) => (
                     <div key={page.pageNumber} className="relative group/page">
                       <div className="absolute -left-4 top-0 bottom-0 w-1 bg-slate-100 group-hover/page:bg-primary-500 transition-colors rounded-full"></div>
                       <div className="flex items-center justify-between mb-4 px-2">
                         <div className="flex items-center gap-3">
                           <span className="text-2xl font-black text-slate-800 tabular-nums">#{String(page.pageNumber).padStart(2, '0')}</span>
-                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-wider">Page Output</span>
+                          <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-wider">Asset Rendered</span>
                         </div>
-                        <button className="p-2 text-slate-300 hover:text-primary-500 transition-colors" title="Quick Preview">
-                          <Eye size={18} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleRegeneratePage(index)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm active:scale-95"
+                          >
+                            <RefreshCw size={14} />
+                            重新渲染此页
+                          </button>
+                          <button className="p-2 text-slate-300 hover:text-primary-500 transition-colors" title="Quick Preview">
+                            <Eye size={18} />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="bg-slate-50 rounded-3xl p-4 md:p-6 transition-all group-hover/page:bg-white group-hover/page:shadow-2xl group-hover/page:shadow-primary-500/5 group-hover/page:ring-1 group-hover/page:ring-slate-100">

@@ -368,8 +368,9 @@ export async function generateComicPageImage(
         size: '1024*1024',
         // 参考图：
         // - wan2.5-i2i-preview：作为 i2i，需要底图（images）
+        // - wan2.6-image：支持 1-3 张参考图立绘
         // - wanx-v1：目前 ref_img 更像“底图/编辑”而非“弱参考”，会导致生成结果退化为头像/局部裁切，因此在绘本生成阶段禁用
-        image_reference: modelToUse === 'wan2.5-i2i-preview' ? (processedReference as any) : undefined,
+        image_reference: (modelToUse === 'wan2.5-i2i-preview' || modelToUse === 'wan2.6-image') ? (processedReference as any) : undefined,
       })
       : await generateImageWithQiniu(
         finalPrompt,
@@ -444,13 +445,14 @@ export async function generateComicPagesFromStoryboard(
     }
     
     try {
-      // 参考图选择策略（避免 wanx-v1 被“拼图”牵引成头像特写）：
-      // - wan2.5-i2i-preview：优先使用 referenceImage（通常为拼图/底图）
-      // - 其他模型（含 wanx-v1）：忽略 referenceImage，仅按角色名匹配单人立绘
+      // 参考图选择策略：
+      // - wan2.5-i2i-preview & wan2.6-image：支持多图多模态输入，优先使用“本帧出现的角色”立绘
+      // - 其他模型（含 wanx-v1）：仅按角色名匹配单人立绘（字符串形式）
       let refUrl: string | string[] | undefined = undefined;
+      const isMultiModalModel = generationModel === 'wan2.5-i2i-preview' || generationModel === 'wan2.6-image';
 
-      if (generationModel === 'wan2.5-i2i-preview') {
-        // i2i 模型：只传“本帧出现的角色”的立绘，避免一次性塞太多图触发模型参数限制
+      if (isMultiModalModel) {
+        // 多模态模型：只传“本帧出现的角色”的立绘，避免一次性塞太多图触发模型参数限制
         const perFrameRefs: string[] = [];
         const seen = new Set<string>();
         if (characterReferences && frame.dialogues && frame.dialogues.length > 0) {
@@ -466,7 +468,8 @@ export async function generateComicPagesFromStoryboard(
         }
 
         if (perFrameRefs.length > 0) {
-          // 优先用“本帧角色命中”的参考图（通常 1~3 张），避免把全量角色图塞进来
+          // 优先用“本帧角色命中”的参考图（通常 1~3 张）
+          // wan2.6 支持 1-3 张，i2i 支持更多但此处限制在 5 张以内
           refUrl = perFrameRefs.slice(0, 5);
         } else {
           // 若本帧没法从角色名命中，再 fallback 到请求传入的 referenceImages / referenceImage
