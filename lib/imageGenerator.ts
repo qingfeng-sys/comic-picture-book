@@ -5,7 +5,9 @@
 
 import { generateImageWithQiniu } from '@/lib/providers/qiniu/image';
 import { generateImageWithWan, isWanGenerationModel } from '@/lib/providers/dashscope/image';
+import { generateImageWithVolcanoArk, isVolcanoArkModel } from '@/lib/providers/volcanoark/image';
 import { StoryboardData, DialogueItem, GenerationModel, QINIU_GENERATION_MODELS, WAN_GENERATION_MODELS } from '@/types';
+import { MODEL_REGISTRY } from '@/lib/config/models';
 
 export interface ImageGenerationOptions {
   prompt: string;
@@ -302,7 +304,7 @@ async function checkAndConvertReferenceImage(
 
 /**
  * 生成绘本页面图像
- * 使用七牛云文生图API（kling-v1模型）
+ * 使用各引擎文生图API
  */
 export async function generateComicPageImage(
   pageText: string,
@@ -353,26 +355,32 @@ export async function generateComicPageImage(
   logRefChange();
   
   try {
-    // wanx-v1 容易退化成“纯头像/证件照风格”，这里额外强制场景化与构图完整
-    const finalPrompt =
-      modelToUse === 'wanx-v1'
-        ? `绘本场景插图（必须包含环境背景与完整构图，人物全身或半身，非头像特写、非证件照、非裁切脸部）：${prompt}`
-        : prompt;
+    const finalPrompt = prompt;
 
     console.log(`正在生成第${pageNumber}页图像，提示词: ${finalPrompt}`);
     
-    const imageUrl = isWanGenerationModel(modelToUse)
-      ? await generateImageWithWan(finalPrompt, {
+    let imageUrl: string;
+
+    if (isWanGenerationModel(modelToUse)) {
+      imageUrl = await generateImageWithWan(finalPrompt, {
         model: modelToUse,
         negative_prompt: negativePrompt,
         size: '1024*1024',
         // 参考图：
         // - wan2.5-i2i-preview：作为 i2i，需要底图（images）
         // - wan2.6-image：支持 1-3 张参考图立绘
-        // - wanx-v1：目前 ref_img 更像“底图/编辑”而非“弱参考”，会导致生成结果退化为头像/局部裁切，因此在绘本生成阶段禁用
         image_reference: (modelToUse === 'wan2.5-i2i-preview' || modelToUse === 'wan2.6-image') ? (processedReference as any) : undefined,
-      })
-      : await generateImageWithQiniu(
+      });
+    } else if (isVolcanoArkModel(modelToUse)) {
+      const config = MODEL_REGISTRY[modelToUse];
+      imageUrl = await generateImageWithVolcanoArk(finalPrompt, {
+        model: modelToUse,
+        size: config?.defaultParameters?.size || '2048x2048',
+        watermark: config?.defaultParameters?.watermark ?? false,
+        image_reference: processedReference,
+      });
+    } else {
+      imageUrl = await generateImageWithQiniu(
         finalPrompt,
         {
           negative_prompt: negativePrompt,
@@ -383,6 +391,7 @@ export async function generateComicPageImage(
           image_reference: processedReference as any,
         }
       );
+    }
     
     // 验证返回的URL是否有效（不是占位符）
     if (imageUrl && !imageUrl.includes('via.placeholder.com') && !imageUrl.includes('placeholder')) {
@@ -447,7 +456,7 @@ export async function generateComicPagesFromStoryboard(
     try {
       // 参考图选择策略：
       // - wan2.5-i2i-preview & wan2.6-image：支持多图多模态输入，优先使用“本帧出现的角色”立绘
-      // - 其他模型（含 wanx-v1）：仅按角色名匹配单人立绘（字符串形式）
+      // - 其他模型：仅按角色名匹配单人立绘（字符串形式）
       let refUrl: string | string[] | undefined = undefined;
       const isMultiModalModel = generationModel === 'wan2.5-i2i-preview' || generationModel === 'wan2.6-image';
 
@@ -688,9 +697,9 @@ export async function generateComicPages(
     const dialogue = extractDialogue(pageText);
     const narration = extractNarration(pageText);
     
-    // 参考图选择策略（避免 wanx-v1 被“拼图”牵引成头像特写）：
+    // 参考图选择策略：
     // - wan2.5-i2i-preview：优先使用 referenceImage（通常为拼图/底图）
-    // - 其他模型（含 wanx-v1）：忽略 referenceImage，仅按角色名匹配单人立绘
+    // - 其他模型：忽略 referenceImage，仅按角色名匹配单人立绘
     let refUrl: string | string[] | undefined =
       generationModel === 'wan2.5-i2i-preview'
         ? (referenceImages && referenceImages.length > 0 ? referenceImages : (referenceImage || undefined))

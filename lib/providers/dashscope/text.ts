@@ -54,7 +54,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promis
   throw lastError;
 }
 
-function getDashScopeApiKey(): string {
+export function getDashScopeApiKey(): string {
   const key =
     process.env.DASHSCOPE_API_KEY ||
     (process.env as any).DASHSCOPE_API_KEY ||

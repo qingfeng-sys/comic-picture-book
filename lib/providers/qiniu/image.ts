@@ -29,7 +29,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = RETRY_TIMES): Promis
 }
 
 export interface QiniuImageGenerationRequest {
-  model?: string;  // 模型ID，例如 'kling-v1'（兼容OpenAI格式，使用小写）
+  model?: string;  // 模型ID（例如 'gemini-2.5-flash-image'）
   prompt: string;
   n?: number;  // 生成图像数量，默认为1
   size?: string;  // 图像尺寸，格式为 'widthxheight'，例如 '512x512'

@@ -25,6 +25,17 @@ async function postHandler(request: NextRequest) {
           })
         )
         .optional(),
+      characterProfiles: z
+        .array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            role: z.string().optional(),
+            description: z.string().optional(),
+            visual: z.string().optional(),
+          })
+        )
+        .optional(),
       outputFormat: z.enum(['script', 'storyboard']).optional(),
       // 可选：仅生成大纲（调试/扩展用），前端暂不使用
       stage: z.enum(['outline', 'script', 'storyboard']).optional(),
@@ -35,7 +46,7 @@ async function postHandler(request: NextRequest) {
       return validationError();
     }
 
-    const { prompt, conversationHistory, outputFormat } = parseResult.data;
+    const { prompt, conversationHistory, characterProfiles, outputFormat } = parseResult.data;
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
@@ -72,7 +83,7 @@ async function postHandler(request: NextRequest) {
 
     // 支持 stage 精确控制（未来可开放给前端）
     if (requestedStage === 'outline') {
-      const outlineResult = await generateOutline(prompt, conversationHistory || []);
+      const outlineResult = await generateOutline(prompt, conversationHistory || [], characterProfiles as any);
       logger.info(
         {
           provider: 'dashscope',
@@ -91,8 +102,8 @@ async function postHandler(request: NextRequest) {
     }
 
     if (requestedStage === 'script') {
-      const outlineResult = await generateOutline(prompt, conversationHistory || []);
-      const scriptResult = await generateScriptFromOutline(outlineResult.outline, conversationHistory || []);
+      const outlineResult = await generateOutline(prompt, conversationHistory || [], characterProfiles as any);
+      const scriptResult = await generateScriptFromOutline(outlineResult.outline, conversationHistory || [], characterProfiles as any);
       return NextResponse.json({
         success: true,
         data: {
@@ -106,7 +117,7 @@ async function postHandler(request: NextRequest) {
 
     if (format === 'storyboard' || requestedStage === 'storyboard') {
       // 生成结构化分镜数据（内部包含：大纲→剧本→分镜）
-      const storyboardResult = await generateStoryboard(prompt, conversationHistory || []);
+      const storyboardResult = await generateStoryboard(prompt, conversationHistory || [], characterProfiles as any);
 
       logger.info(
         {
@@ -127,7 +138,7 @@ async function postHandler(request: NextRequest) {
       });
     } else {
       // 文本脚本（内部包含：大纲→剧本）
-      const result = await generateStoryScript(prompt, conversationHistory as StoryMessage[] | undefined);
+      const result = await generateStoryScript(prompt, conversationHistory as StoryMessage[] | undefined, characterProfiles as any);
 
       logger.info(
         {

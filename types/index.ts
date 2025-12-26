@@ -1,3 +1,5 @@
+import { MODEL_REGISTRY } from '@/lib/config/models';
+
 // 脚本相关类型
 export interface Script {
   id: string;
@@ -18,30 +20,22 @@ export interface ScriptWithSegments extends Script {
   totalSegments: number;
 }
 
-// 文生图模型
-export const WAN_GENERATION_MODELS = [
-  // 万相 2.6 通用图像模型（DashScope 控制台 wan2.6-image）
-  'wan2.6-image',
-  'wan2.5-t2i-preview',
-  'wan2.2-t2i-plus',
-  'wan2.2-t2i-flash',
-  'wanx2.1-t2i-plus',
-  'wanx2.1-t2i-turbo',
-  'wanx2.0-t2i-turbo',
-  // 万相文生图 v1（DashScope 控制台 wanx-v1）
-  'wanx-v1',
-  // 万相图生图 v2.5 Preview（DashScope 控制台 wan2.5-i2i-preview）
-  'wan2.5-i2i-preview',
-] as const;
+// 动态推导模型数组和类型
+export const ALL_MODELS = Object.values(MODEL_REGISTRY);
 
-export const QINIU_GENERATION_MODELS = [
-  'gemini-2.5-flash-image',
-  'kling-v1',
-] as const;
+export const IMAGE_GENERATION_MODELS = ALL_MODELS
+  .filter(m => m.category === 'image')
+  .map(m => m.id);
 
-export type GenerationModel =
-  | (typeof WAN_GENERATION_MODELS)[number]
-  | (typeof QINIU_GENERATION_MODELS)[number];
+export const WAN_GENERATION_MODELS = ALL_MODELS
+  .filter(m => m.category === 'image' && m.provider === 'dashscope')
+  .map(m => m.id);
+
+export const QINIU_GENERATION_MODELS = ALL_MODELS
+  .filter(m => m.category === 'image' && m.provider === 'qiniu')
+  .map(m => m.id);
+
+export type GenerationModel = (typeof IMAGE_GENERATION_MODELS)[number];
 
 // 对话消息类型
 export interface ChatMessage {

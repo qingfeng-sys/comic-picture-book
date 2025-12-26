@@ -1,4 +1,4 @@
-import { StoryboardData } from '@/types';
+import { StoryboardData, CharacterProfile } from '@/types';
 import { dashscopeChat, type DashScopeMessage, type DashScopeChatOptions } from '@/lib/providers/dashscope/text';
 
 type Provider = 'dashscope' | 'fallback';
@@ -216,14 +216,20 @@ function stageTimeoutMs(stage: 'outline' | 'script' | 'storyboard' | 'chat'): nu
  */
 export async function generateOutline(
   userPrompt: string,
-  conversationHistory: StoryMessage[] = []
+  conversationHistory: StoryMessage[] = [],
+  characterProfiles: CharacterProfile[] = []
 ): Promise<{ outline: StoryOutline; providers: PipelineProviders }> {
+  const visualLibrary = characterProfiles.length > 0 
+    ? `\n\n**已知角色视觉特征库（必须遵守）：**\n${characterProfiles.map(p => `- ${p.name}: ${p.visual || p.description}`).join('\n')}`
+    : '';
+
   const systemPrompt = `你是一个专业的故事大纲策划师。请根据用户的故事描述，生成“绘本/漫画”创作所需的大纲。
 
 **严格规则：**
 1) 只输出 JSON 对象；不要任何解释、说明、markdown 代码块标记
 2) JSON 必须严格符合下方 Schema（字段名必须一致）
 3) **性别与外貌准确性**：必须根据角色关系（如“哥哥”、“弟弟”、“舅舅”）准确设定性别特征。**严禁**为男性角色添加明显的女性化外貌描述（如扎辫子、穿裙子等，除非用户特别要求）。
+4) **视觉特征继承**：如果提供了角色视觉特征库，在大纲中描述这些角色时，必须严格保持一致。${visualLibrary}
 
 Schema:
 {
@@ -286,8 +292,13 @@ Schema:
  */
 export async function generateScriptFromOutline(
   outline: StoryOutline,
-  conversationHistory: StoryMessage[] = []
+  conversationHistory: StoryMessage[] = [],
+  characterProfiles: CharacterProfile[] = []
 ): Promise<{ script: string; providers: PipelineProviders }> {
+  const visualLibrary = characterProfiles.length > 0 
+    ? `\n\n**核心角色视觉特征库（每一页描述人物时必须包含这些关键词）：**\n${characterProfiles.map(p => `- ${p.name}: ${p.visual || p.description}`).join('\n')}`
+    : '';
+
   const systemPrompt = `你是一个专业的绘本/漫画编剧。请基于“故事大纲 JSON”写出一个适合绘本/漫画分镜的**半结构化剧本**。
 
 **输出要求：**
@@ -307,7 +318,7 @@ export async function generateScriptFromOutline(
 - 对白简短、儿童友好（如目标读者是儿童）
 - 场景描述要可视化、便于画面生成
 - **角色一致性与性别硬约束**：必须严格遵守大纲中的角色表（姓名/关系/年龄段/外观要点）。后续每页都要保持人物外观与身份一致。**严禁性别错乱**，例如“弟弟/哥哥/舅舅”等男性角色必须具备清晰的男性特征，禁止出现辫子、长发、裙子等违背角色身份的描述。
-- **外观稳定性**：在每一页的人物描述中，固定使用相同的关键词描述外观，确保 AI 生成图片时角色不走样。
+- **外观稳定性**：在每一页的人物描述中，固定使用相同的关键词描述外观，确保 AI 生成图片时角色不走样。${visualLibrary}
 `;
 
   const userContent = `这是故事大纲(JSON)：\n${JSON.stringify(outline, null, 2)}\n\n请按要求输出剧本。`;
@@ -342,11 +353,12 @@ export async function generateScriptFromOutline(
  */
 export async function generateStoryScript(
   userPrompt: string,
-  conversationHistory: StoryMessage[] = []
+  conversationHistory: StoryMessage[] = [],
+  characterProfiles: CharacterProfile[] = []
 ): Promise<ChatResult> {
   // 兼容旧调用：这里按新流程生成“剧本”（大纲→剧本），并返回 content（非 JSON）
-  const { outline } = await generateOutline(userPrompt, conversationHistory);
-  const { script, providers } = await generateScriptFromOutline(outline, conversationHistory);
+  const { outline } = await generateOutline(userPrompt, conversationHistory, characterProfiles);
+  const { script, providers } = await generateScriptFromOutline(outline, conversationHistory, characterProfiles);
   return { content: script, provider: 'dashscope', model: providers.script };
 }
 
@@ -361,12 +373,13 @@ interface StoryboardResult {
  */
 export async function generateStoryboard(
   userPrompt: string,
-  conversationHistory: StoryMessage[] = []
+  conversationHistory: StoryMessage[] = [],
+  characterProfiles: CharacterProfile[] = []
 ): Promise<StoryboardResult> {
   // 新流程：大纲(JSON) → 半结构化剧本 → 分镜(JSON)
   try {
-    const { outline, providers: p1 } = await generateOutline(userPrompt, conversationHistory);
-    const { script, providers: p2 } = await generateScriptFromOutline(outline, conversationHistory);
+    const { outline, providers: p1 } = await generateOutline(userPrompt, conversationHistory, characterProfiles);
+    const { script, providers: p2 } = await generateScriptFromOutline(outline, conversationHistory, characterProfiles);
 
     // 系统提示词：强制输出纯JSON，不允许任何自然语言
     const systemPrompt = `你是一个JSON数据生成器。你的任务是根据用户提供的“故事剧本”，生成结构化的漫画分镜JSON数据。
@@ -462,11 +475,11 @@ export async function generateStoryboard(
       },
     ];
 
-  const candidates: ModelCandidate[] = [
+    const candidates: ModelCandidate[] = [
     { model: 'qwen-max' },
     { model: 'deepseek-v3' },
-    { model: 'qwen2.5-72b-instruct' },
-  ];
+      { model: 'qwen2.5-72b-instruct' },
+    ];
 
     const result = await callWithModelFallback('storyboard', candidates, messages, {
       temperature: 0.7,

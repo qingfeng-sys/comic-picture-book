@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { getActiveModels } from '@/lib/config/models';
 import type { CharacterProfile, GenerationModel, Script } from '@/types';
 import { deleteCharacter, loadCharactersFromStorage, upsertCharacter } from '@/lib/characterUtils';
 import { loadScriptsFromStorage, extractStoryboardFromScript } from '@/lib/scriptUtils';
@@ -22,16 +23,11 @@ import {
   Sparkles
 } from 'lucide-react';
 
-const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
-  { value: 'wan2.5-t2i-preview', label: '通义万相 V2.5 Preview（文生图）' },
-  { value: 'wan2.2-t2i-plus', label: '通义万相 2.2 Plus（文生图）' },
-  { value: 'wan2.2-t2i-flash', label: '通义万相 2.2 Flash（文生图）' },
-  { value: 'wanx2.1-t2i-plus', label: '通义万相 X2.1 Plus（文生图）' },
-  { value: 'wanx2.1-t2i-turbo', label: '通义万相 X2.1 Turbo（文生图）' },
-  { value: 'wanx2.0-t2i-turbo', label: '通义万相 X2.0 Turbo（文生图）' },
-];
-
 export default function CharacterLibrary() {
+  const PORTRAIT_MODELS = useMemo(() => 
+    getActiveModels('image').map(m => ({ value: m.id as GenerationModel, label: m.name })),
+  []);
+
   const [characters, setCharacters] = useState<CharacterProfile[]>([]);
   const [scripts, setScripts] = useState<Script[]>([]);
 
@@ -47,7 +43,7 @@ export default function CharacterLibrary() {
   const [description, setDescription] = useState('');
   const [visual, setVisual] = useState('');
   const [matchNames, setMatchNames] = useState(''); // 逗号分隔
-  const [model, setModel] = useState<GenerationModel>('wan2.2-t2i-plus');
+  const [model, setModel] = useState<GenerationModel>('wan2.6-image');
 
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -247,6 +243,16 @@ export default function CharacterLibrary() {
       sourceScriptId: target,
       sourceScriptTitle: script?.title || c.sourceScriptTitle || `脚本（${target}）`,
       updatedAt: now,
+    };
+    await upsertCharacter(next);
+    await refreshCharacters();
+  }
+
+  async function handleUpdateVisual(c: CharacterProfile, visual: string) {
+    const next: CharacterProfile = {
+      ...c,
+      visual: visual.trim(),
+      updatedAt: new Date().toISOString(),
     };
     await upsertCharacter(next);
     await refreshCharacters();
@@ -462,12 +468,18 @@ export default function CharacterLibrary() {
                           </div>
 
                           <div className="mt-auto space-y-4">
-                            {c.visual && (
-                               <div className="flex items-center gap-2 py-1.5 px-3 bg-white/60 rounded-xl border border-slate-100/50">
-                                 <Wand2 size={14} className="text-violet-400 shrink-0" />
-                                 <span className="text-xs font-bold text-slate-500 truncate">外观：{c.visual}</span>
-                               </div>
-                            )}
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5 px-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">视觉锁定特征</label>
+                                <Wand2 size={10} className="text-violet-400" />
+                              </div>
+                              <input
+                                className="w-full px-4 py-2.5 bg-white border border-slate-100 rounded-xl text-xs font-bold text-slate-600 focus:border-violet-400 focus:ring-4 focus:ring-violet-500/5 transition-all outline-none shadow-sm"
+                                defaultValue={c.visual || ''}
+                                onBlur={(e) => handleUpdateVisual(c, e.target.value)}
+                                placeholder="输入发型、服装、肤色等固定特征..."
+                              />
+                            </div>
 
                             {moveOpenForId === c.id && (
                               <div className="flex items-center gap-2 p-2 bg-primary-50/50 rounded-2xl border border-primary-100 animate-in zoom-in-95 duration-200">

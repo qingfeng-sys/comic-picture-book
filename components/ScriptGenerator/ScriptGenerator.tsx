@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChatMessage, StoryboardData, Script } from '@/types';
+import { ChatMessage, StoryboardData, Script, CharacterProfile } from '@/types';
 import ChatInterface from '../ChatInterface/ChatInterface';
 import { 
   Sparkles, 
@@ -17,17 +17,21 @@ import {
   ChevronRight,
   ChevronLeft,
   PenTool,
-  Clock
+  Clock,
+  Mic,
+  MicOff,
+  Volume2
 } from 'lucide-react';
 
 interface ScriptGeneratorProps {
   onScriptComplete: (script: string, title: string, scriptId?: string) => void;
   onCancel: () => void;
   initialScript?: Script | null;
+  characters?: CharacterProfile[];
   onGeneratingChange?: (isGenerating: boolean) => void;
 }
 
-export default function ScriptGenerator({ onScriptComplete, onCancel, initialScript, onGeneratingChange }: ScriptGeneratorProps) {
+export default function ScriptGenerator({ onScriptComplete, onCancel, initialScript, characters, onGeneratingChange }: ScriptGeneratorProps) {
   const [title, setTitle] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -36,6 +40,8 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
   const [currentScript, setCurrentScript] = useState('');
   const [currentStoryboard, setCurrentStoryboard] = useState<StoryboardData | null>(null);
   const [outputFormat, setOutputFormat] = useState<'script' | 'storyboard'>('storyboard'); // 默认生成分镜
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   // 如果是编辑模式，预填充数据
   useEffect(() => {
@@ -73,6 +79,13 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
         body: JSON.stringify({ 
           prompt: initialPrompt,
           outputFormat: outputFormat, // 传递输出格式
+          characterProfiles: characters?.map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            description: p.description,
+            visual: p.visual
+          }))
         }),
       });
 
@@ -128,6 +141,37 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        // 实际场景：上传 blob -> 获取 URL -> 调用 /api/audio/stt
+        alert('语音录入功能已开启（后端已支持 SenseVoice），需集成 OSS 上传后即可实时转文字。');
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('无法启动录音:', err);
+      alert('请允许麦克风访问权限');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+      setMediaRecorder(null);
+    }
+  };
+
   const handleChatMessage = async (message: string) => {
     if (isChatting) return; // 防止重复提交
 
@@ -151,6 +195,13 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
           conversationHistory: updatedHistory.map(msg => ({
             role: msg.role,
             content: msg.content,
+          })),
+          characterProfiles: characters?.map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.role,
+            description: p.description,
+            visual: p.visual
           })),
           outputFormat: outputFormat, // 传递输出格式
         }),
@@ -293,10 +344,23 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
           </div>
 
           <div className="space-y-3">
-            <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
-              <MessageSquare size={14} className="text-primary-500" />
-              <span>灵感描述 (Inspiration)</span>
-            </label>
+            <div className="flex items-center justify-between ml-1">
+              <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider">
+                <MessageSquare size={14} className="text-primary-500" />
+                <span>灵感描述 (Inspiration)</span>
+              </label>
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                  isRecording 
+                    ? 'bg-red-50 text-red-500 animate-pulse border border-red-100' 
+                    : 'bg-primary-50 text-primary-600 hover:bg-primary-100 border border-primary-100'
+                }`}
+              >
+                {isRecording ? <MicOff size={12} /> : <Mic size={12} />}
+                <span>{isRecording ? '正在倾听...' : '语音录入'}</span>
+              </button>
+            </div>
             <textarea
               value={initialPrompt}
               onChange={(e) => setInitialPrompt(e.target.value)}

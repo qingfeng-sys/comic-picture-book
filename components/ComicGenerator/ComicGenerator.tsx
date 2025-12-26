@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel, CharacterProfile } from '@/types';
+import { getActiveModels } from '@/lib/config/models';
 import {
   createScriptWithSegments,
   loadScriptsFromStorage,
@@ -39,54 +40,26 @@ import {
   Layers
 } from 'lucide-react';
 
-const MODEL_OPTIONS: Array<{
-  value: GenerationModel;
-  label: string;
-  description: string;
-  isAsync: boolean;
-}> = [
-  {
-    value: 'wan2.6-image',
-    label: '万相 wan2.6-image',
-    description: '旗舰级多模态模型，支持 1-3 张参考图，极致画质与一致性',
-    isAsync: true,
-  },
-  {
-    value: 'wanx-v1',
-    label: '万相 wanx-v1（支持参考图）',
-    description: '异步任务，支持参考图/一致性约束（推荐）',
-    isAsync: true,
-  },
-  {
-    value: 'wan2.5-i2i-preview',
-    label: '万相 wan2.5-i2i-preview',
-    description: '图生图模型，强力参考图支持',
-    isAsync: true,
-  },
-  {
-    value: 'gemini-2.5-flash-image',
-    label: 'Gemini 2.5 Flash Image（七牛）',
-    description: '同步返回，支持参考图/一致性约束，速度快',
-    isAsync: false,
-  },
-];
-
-// 角色立绘：使用“仅文生图”的万相模型（不包含支持参考图的 wanx-v1）
-const PORTRAIT_MODELS: Array<{ value: GenerationModel; label: string }> = [
-  { value: 'wan2.5-t2i-preview', label: '通义万相 V2.5 Preview（文生图）' },
-  { value: 'wan2.2-t2i-plus', label: '通义万相 2.2 Plus（文生图）' },
-  { value: 'wan2.2-t2i-flash', label: '通义万相 2.2 Flash（文生图）' },
-  { value: 'wanx2.1-t2i-plus', label: '通义万相 X2.1 Plus（文生图）' },
-  { value: 'wanx2.1-t2i-turbo', label: '通义万相 X2.1 Turbo（文生图）' },
-  { value: 'wanx2.0-t2i-turbo', label: '通义万相 X2.0 Turbo（文生图）' },
-];
-
 interface ComicGeneratorProps {
   onBack: () => void;
   initialScriptId?: string | null;
 }
 
 export default function ComicGenerator({ onBack, initialScriptId }: ComicGeneratorProps) {
+  const MODEL_OPTIONS = useMemo(() => 
+    getActiveModels('image').map(m => ({
+      value: m.id as GenerationModel,
+      label: m.name,
+      description: m.description,
+      isAsync: m.provider === 'dashscope'
+    })), []);
+
+  const PORTRAIT_MODELS = useMemo(() => 
+    getActiveModels('image').map(m => ({
+      value: m.id as GenerationModel,
+      label: m.name
+    })), []);
+
   const [savedScripts, setSavedScripts] = useState<Script[]>([]);
   const [selectedScript, setSelectedScript] = useState<ScriptWithSegments | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
@@ -97,7 +70,7 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
   const [generatedPages, setGeneratedPages] = useState<ComicPage[]>([]);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
-  const [generationModel, setGenerationModel] = useState<GenerationModel>('wan2.5-i2i-preview');
+  const [generationModel, setGenerationModel] = useState<GenerationModel>('wan2.6-image');
   const [characters, setCharacters] = useState<CharacterProfile[]>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [useCharacterReferences, setUseCharacterReferences] = useState(true);
@@ -106,7 +79,7 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
   const [addFromLibraryQuery, setAddFromLibraryQuery] = useState('');
   const [extraVisibleCharacterIds, setExtraVisibleCharacterIds] = useState<string[]>([]);
   const [userTouchedCharacterSelection, setUserTouchedCharacterSelection] = useState(false);
-  const [portraitModel, setPortraitModel] = useState<GenerationModel>('wan2.2-t2i-plus');
+  const [portraitModel, setPortraitModel] = useState<GenerationModel>('wan2.6-image');
   const [isGeneratingPortraits, setIsGeneratingPortraits] = useState(false);
   const [combinedReferenceImage, setCombinedReferenceImage] = useState<string | undefined>(undefined);
 

@@ -8,8 +8,9 @@ import PersonalCenter from '@/components/PersonalCenter/PersonalCenter';
 import MainLayout from '@/components/Layout/MainLayout';
 import CharacterLibrary from '@/components/CharacterLibrary/CharacterLibrary';
 import { saveScriptToStorage, loadScriptsFromStorage, loadComicBooksFromStorage, deleteComicBookFromStorage, deleteScriptFromStorage, saveComicBookToStorage } from '@/lib/scriptUtils';
+import { loadCharactersFromStorage } from '@/lib/characterUtils';
 import { useSession } from 'next-auth/react';
-import { Script, ComicBook } from '@/types';
+import { Script, ComicBook, CharacterProfile } from '@/types';
 import { 
   Sparkles, 
   Palette, 
@@ -40,6 +41,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [savedScripts, setSavedScripts] = useState<Script[]>([]);
   const [savedComicBooks, setSavedComicBooks] = useState<ComicBook[]>([]);
+  const [characters, setCharacters] = useState<CharacterProfile[]>([]);
   const [editingScript, setEditingScript] = useState<Script | null>(null);
   const [viewingComicBook, setViewingComicBook] = useState<ComicBook | null>(null);
   const [isGenerating, setIsGenerating] = useState(false); // 添加生成状态锁
@@ -51,11 +53,13 @@ export default function Home() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (viewMode === 'home' || viewMode === 'my-works') {
+      if (viewMode === 'home' || viewMode === 'my-works' || viewMode === 'script' || viewMode === 'edit') {
         const scripts = await loadScriptsFromStorage();
         setSavedScripts(scripts);
         const comicBooks = await loadComicBooksFromStorage();
         setSavedComicBooks(comicBooks);
+        const chars = await loadCharactersFromStorage();
+        setCharacters(chars);
       }
     };
     fetchData();
@@ -116,8 +120,8 @@ export default function Home() {
       setPendingScriptId(scriptId || scripts[0]?.id || null);
       setViewMode('comic');
     } else {
-      setEditingScript(null);
-      setViewMode('my-works');
+    setEditingScript(null);
+    setViewMode('my-works');
     }
   };
 
@@ -229,6 +233,7 @@ export default function Home() {
           }}
           // 仅在显式“编辑故事脚本”模式下才带入 initialScript
           initialScript={viewMode === 'edit' ? editingScript : null}
+          characters={characters}
           onGeneratingChange={setIsGenerating}
         />
       </MainLayout>
@@ -391,14 +396,14 @@ export default function Home() {
                   </div>
                   <span className="px-4 py-1.5 rounded-full bg-primary-50 text-primary-600 font-black text-xs border border-primary-100/50 uppercase tracking-widest">
                     {savedScripts.length} Drafts Saved
-                  </span>
-                </div>
+              </span>
+            </div>
 
-                {savedScripts.length > 0 ? (
+            {savedScripts.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {savedScripts.map((script) => (
-                      <div
-                        key={script.id}
+                {savedScripts.map((script) => (
+                  <div
+                    key={script.id}
                         className="group relative bg-white border border-slate-100 rounded-[2.5rem] p-8 hover:border-primary-300 hover:shadow-2xl hover:shadow-primary-500/5 transition-all duration-500"
                       >
                         <div className="flex justify-between items-start mb-6">
@@ -406,55 +411,55 @@ export default function Home() {
                             <FileText size={24} />
                           </div>
                           <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleEditScript(script)}
+                        <button
+                          onClick={() => handleEditScript(script)}
                               className="p-2.5 rounded-xl bg-slate-50 text-slate-400 hover:text-primary-600 hover:bg-primary-50 transition-all"
                               title="编辑脚本"
-                            >
-                              <Edit3 size={18} />
-                            </button>
-                            <button
-                              onClick={() => {
+                        >
+                          <Edit3 size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
                                 setEditingScript(null);
                                 setPendingScriptId(script.id);
-                                setViewMode('comic');
-                              }}
+                            setViewMode('comic');
+                          }}
                               className="p-2.5 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-all shadow-lg shadow-primary-200"
                               title="前往生成绘本"
-                            >
+                        >
                               <Wand2 size={18} />
-                            </button>
-                          </div>
-                        </div>
+                        </button>
+                      </div>
+                    </div>
                         <h3 className="font-black text-xl text-slate-800 group-hover:text-primary-600 transition-colors line-clamp-1 mb-3">{script.title}</h3>
                         <p className="text-sm font-medium text-slate-500 mb-8 line-clamp-4 leading-relaxed italic opacity-70">
                           "{script.content.substring(0, 150)}..."
-                        </p>
+                    </p>
                         <div className="flex items-center justify-between pt-6 border-t border-slate-50">
                           <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">
-                            <Clock size={12} />
-                            <span>{new Date(script.createdAt).toLocaleDateString()}</span>
+                        <Clock size={12} />
+                        <span>{new Date(script.createdAt).toLocaleDateString()}</span>
                           </div>
-                          <button
+                      <button
                             onClick={() => handleDeleteScript(script.id)}
                             className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                          >
+                      >
                             <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      </button>
+                    </div>
                   </div>
-                ) : (
+                ))}
+              </div>
+            ) : (
                   <div className="bg-slate-50/50 rounded-[3rem] border-2 border-dashed border-slate-200 py-32 text-center">
                     <div className="w-20 h-20 bg-white rounded-3xl shadow-sm flex items-center justify-center mx-auto mb-6">
                       <FileText size={40} className="text-slate-200" />
                     </div>
                     <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-sm">No scripts drafted yet</p>
                     <button onClick={() => setViewMode('script')} className="mt-8 btn-primary !rounded-2xl !py-3 !px-8">开始首个故事创作</button>
-                  </div>
-                )}
               </div>
+            )}
+          </div>
             ) : (
               <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center justify-between px-2">
@@ -464,26 +469,26 @@ export default function Home() {
                   </div>
                   <span className="px-4 py-1.5 rounded-full bg-violet-50 text-violet-600 font-black text-xs border border-violet-100/50 uppercase tracking-widest">
                     {savedComicBooks.length} Books Rendered
-                  </span>
-                </div>
+              </span>
+            </div>
 
-                {savedComicBooks.length > 0 ? (
+            {savedComicBooks.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {savedComicBooks.map((comicBook) => {
-                      const script = savedScripts.find(s => s.id === comicBook.scriptId);
-                      return (
-                        <div
-                          key={comicBook.id}
+                {savedComicBooks.map((comicBook) => {
+                  const script = savedScripts.find(s => s.id === comicBook.scriptId);
+                  return (
+                    <div
+                      key={comicBook.id}
                           className="group bg-white border border-slate-100 rounded-[3rem] p-5 hover:border-violet-300 hover:shadow-2xl hover:shadow-violet-500/5 transition-all duration-500 flex flex-col"
-                        >
+                    >
                           <div className="aspect-[3/4] rounded-[2.5rem] bg-slate-100 mb-6 overflow-hidden relative shadow-inner border border-slate-50">
-                            {comicBook.pages.length > 0 ? (
-                              <img
-                                src={comicBook.pages[0].imageUrl}
+                        {comicBook.pages.length > 0 ? (
+                          <img
+                            src={comicBook.pages[0].imageUrl}
                                 alt=""
                                 className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-1000"
-                              />
-                            ) : (
+                          />
+                        ) : (
                               <div className="w-full h-full flex items-center justify-center text-slate-300">
                                 <BookOpen size={48} />
                               </div>
@@ -499,15 +504,15 @@ export default function Home() {
                                  Open Reader
                                </button>
                             </div>
-                          </div>
+                      </div>
                           
                           <div className="flex-1 space-y-4 flex flex-col justify-between">
                             <div className="flex justify-between items-start gap-3 px-2">
                               <h3 className="font-black text-lg text-slate-800 group-hover:text-violet-600 transition-colors line-clamp-2 leading-tight">
                                 {comicBook.title || script?.title || '未命名绘本'}
-                              </h3>
+                        </h3>
                               <div className="flex gap-1">
-                                <button
+                          <button
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     const newTitle = prompt('重命名绘本:', comicBook.title || '');
@@ -520,20 +525,20 @@ export default function Home() {
                                       } else {
                                         alert('保存重命名失败，请重试');
                                       }
-                                    }
-                                  }}
+                              }
+                            }}
                                   className="p-1.5 text-slate-300 hover:text-primary-500 transition-colors"
-                                >
-                                  <Edit3 size={14} />
-                                </button>
-                                <button 
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
                                   onClick={(e) => { e.stopPropagation(); handleDeleteComicBook(comicBook.id); }} 
                                   className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </div>
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
 
                             <div className="flex items-center gap-3 px-1 pt-2 border-t border-slate-50">
                                <div className="flex-1 text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
@@ -641,14 +646,14 @@ export default function Home() {
                       </div>
                       
                       <div className="pt-4 grid grid-cols-2 gap-3">
-                        <button 
+                        <button
                           onClick={() => { setViewingComicBook(comicBook); setViewMode('view-comic'); }}
                           className="py-3 px-4 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-widest hover:border-primary-300 hover:text-primary-600 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
                           <Eye size={14} />
                           预览
                         </button>
-                        <button 
+                        <button
                           onClick={() => alert('发布功能将在 ICP 备案完成后正式开启！目前您可以先通过“导出”功能保存作品。')}
                           className="py-3 px-4 bg-primary-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary-700 shadow-lg shadow-primary-200 transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
@@ -669,7 +674,7 @@ export default function Home() {
                   <p className="text-slate-400 font-black uppercase tracking-widest text-sm">No completed works to publish</p>
                   <p className="text-slate-300 text-xs font-medium">快去生成您的第一部绘本吧</p>
                 </div>
-                <button 
+                <button
                   onClick={() => setViewMode('comic')}
                   className="btn-primary !rounded-2xl !py-3 !px-8"
                 >
@@ -862,7 +867,7 @@ export default function Home() {
                   );
                 })}
                 {savedComicBooks.length < 6 && (
-                  <div
+                    <div
                     className="aspect-[3/4] rounded-[2.5rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 gap-3 hover:border-primary-200 hover:bg-primary-50/30 transition-all group cursor-pointer"
                     onClick={() => setViewMode('script')}
                   >

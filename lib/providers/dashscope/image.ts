@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { GenerationModel, WAN_GENERATION_MODELS } from '@/types';
+import { GenerationModel } from '@/types';
 
 const WAN_API_BASE = 'https://dashscope.aliyuncs.com/api/v1';
 const WAN_SERVICE_PATH = '/services/aigc/text2image/image-synthesis';
@@ -28,19 +28,19 @@ function resolveWanApiKey(): string {
   return apiKey;
 }
 
-type WanGenerationModel = (typeof WAN_GENERATION_MODELS)[number];
-
-export function isWanGenerationModel(model?: GenerationModel | string): model is WanGenerationModel {
-  return !!model && WAN_GENERATION_MODELS.includes(model as WanGenerationModel);
+export function isWanGenerationModel(model?: string): boolean {
+  if (!model) return false;
+  // 从核心配置中判断
+  const { MODEL_REGISTRY } = require('@/lib/config/models');
+  return MODEL_REGISTRY[model]?.provider === 'dashscope' && MODEL_REGISTRY[model]?.category === 'image';
 }
 
 interface WanSubmitOptions {
-  model: WanGenerationModel;
+  model: string;
   negative_prompt?: string;
   size?: string;
   /**
-   * 参考图（仅 wanx-v1 支持）
-   * 说明：DashScope 万相的参考图字段以控制台文档为准；这里按 image_reference 透传。
+   * 参考图
    */
   image_reference?: string | string[];
 }
@@ -123,15 +123,15 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
   } else {
     // 2. 传统模型的平铺结构兼容
     payload = {
-      model: options.model,
-      input: {
-        prompt: cleanPrompt,
-      },
-      parameters: {
-        size: options.size || '1024*1024',
-        n: 1,
-      },
-    };
+    model: options.model,
+    input: {
+      prompt: cleanPrompt,
+    },
+    parameters: {
+      size: options.size || '1024*1024',
+      n: 1,
+    },
+  };
 
     // I2I 专用路径：wan2.5-i2i-preview
     if (options.model === 'wan2.5-i2i-preview') {
@@ -144,11 +144,6 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
       }
     }
 
-    // T2I + ref 兼容：wanx-v1
-    if (options.model === 'wanx-v1' && options.image_reference && !Array.isArray(options.image_reference)) {
-      payload.input.ref_img = options.image_reference;
-    }
-    
     // negative_prompt 注入
     if (options.model !== 'wan2.5-i2i-preview' && options.negative_prompt) {
       payload.input.negative_prompt = options.negative_prompt;
@@ -261,15 +256,13 @@ export async function waitForWanTaskResult(
 export async function generateImageWithWan(
   prompt: string,
   options?: {
-    model?: GenerationModel;
+    model?: string;
     negative_prompt?: string;
     size?: string;
     image_reference?: string | string[];
   }
 ): Promise<string> {
-  const model = options?.model && isWanGenerationModel(options.model)
-    ? options.model
-    : WAN_GENERATION_MODELS[0];
+  const model = options?.model || 'wan2.6-image';
 
   const submitResult = await submitWanImageTask(prompt, {
     model,

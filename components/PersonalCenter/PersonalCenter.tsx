@@ -97,8 +97,8 @@ export default function PersonalCenter({ onNavigate }: PersonalCenterProps) {
             <p className="text-primary-100/80 text-sm font-medium mb-6">Unique ID: {currentUser?.id || 'guest-001'}</p>
             
             <div className="flex flex-wrap justify-center md:justify-start gap-3">
-              <button
-                onClick={() => alert('编辑资料功能开发中')}
+            <button
+              onClick={() => alert('编辑资料功能开发中')}
                 className="flex items-center gap-2 px-6 py-2.5 bg-white text-primary-600 rounded-xl text-sm font-bold hover:bg-primary-50 transition-all shadow-lg active:scale-95"
               >
                 <Edit3 size={16} />
@@ -107,9 +107,9 @@ export default function PersonalCenter({ onNavigate }: PersonalCenterProps) {
               <button
                 onClick={() => alert('会员续费功能开发中')}
                 className="flex items-center gap-2 px-6 py-2.5 bg-primary-500/30 backdrop-blur-md border border-white/30 text-white rounded-xl text-sm font-bold hover:bg-white/10 transition-all active:scale-95"
-              >
+            >
                 提升创作额度
-              </button>
+            </button>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function PersonalCenter({ onNavigate }: PersonalCenterProps) {
             <div className="flex items-center justify-between mb-4">
               <div className={`p-3 rounded-2xl bg-slate-50 text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-500 transition-colors`}>
                 {stat.icon}
-              </div>
+            </div>
               <div className="text-3xl font-black text-slate-800 tabular-nums">{stat.value}</div>
             </div>
             <p className="text-sm font-bold text-slate-500 group-hover:text-slate-700 transition-colors">{stat.label}</p>

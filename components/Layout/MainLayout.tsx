@@ -188,13 +188,13 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={() => setShowLoginModal(true)}
+                  <button
+                    onClick={() => setShowLoginModal(true)}
                   className="btn-primary flex items-center space-x-2 !py-2 !px-5"
-                >
-                  <User size={18} />
+                  >
+                    <User size={18} />
                   <span className="text-sm">进入工坊</span>
-                </button>
+                  </button>
               )}
             </div>
           </div>
@@ -218,17 +218,17 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
 
               return (
                 <div key={item.id} className="space-y-1">
-                  <button
+                <button
                     onClick={() => {
                       if (item.hasSubmenu) setExpandedMenu(isExpanded ? null : item.id);
                       else handleMenuClick(item.id);
-                    }}
+                  }}
                     className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                       isActive 
                         ? 'bg-primary-50 text-primary-600 shadow-sm shadow-primary-100/50' 
                         : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-900'
-                    }`}
-                  >
+                  }`}
+                >
                     <div className={`flex items-center justify-center ${isSidebarOpen ? 'mr-3' : 'mx-auto'} transition-all`}>
                       {item.icon}
                     </div>
@@ -236,39 +236,39 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
                       <>
                         <span className={`text-sm font-semibold flex-1 text-left ${isActive ? 'text-primary-700' : ''}`}>
                           {item.label}
-                        </span>
-                        {item.hasSubmenu && (
+                    </span>
+                  {item.hasSubmenu && (
                           <ChevronDown size={14} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                         )}
                       </>
-                    )}
-                  </button>
-                  
+                  )}
+                </button>
+                
                   {item.hasSubmenu && isExpanded && isSidebarOpen && (
                     <div className="ml-9 space-y-1 py-1 animate-in slide-in-from-top-2 duration-200">
                       {item.submenu?.map((sub) => {
                         const isSubActive = currentPage === sub.id;
                         return (
-                          <button
+                      <button
                             key={sub.id}
                             onClick={() => {
                               handleMenuClick(sub.id);
                               if (isMobile) setIsSidebarOpen(false);
-                            }}
+                        }}
                             className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                               isSubActive 
                                 ? 'text-primary-600 bg-primary-50/50' 
                                 : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
+                        }`}
+                      >
                             {sub.icon}
                             <span>{sub.label}</span>
-                          </button>
+                      </button>
                         );
                       })}
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
               );
             })}
           </nav>
@@ -285,7 +285,7 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
         {/* 主内容区 - 留白优化 */}
         <main className="flex-1 overflow-y-auto bg-[#f8fafc]/50 relative">
           <div className="max-w-[1400px] mx-auto p-4 sm:p-6 lg:p-10 min-h-full">
-            {children}
+          {children}
           </div>
         </main>
       </div>

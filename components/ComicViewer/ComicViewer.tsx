@@ -20,7 +20,9 @@ import {
   Check,
   X,
   Type,
-  Move
+  Move,
+  Play,
+  Volume2
 } from 'lucide-react';
 
 interface ComicViewerProps {
@@ -39,6 +41,48 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
   const canvasRefs = useRef<Map<number, ComicPageCanvasRef>>(new Map());
   const currentPage = currentComicBook.pages[currentPageIndex];
   const [isSaving, setIsSaving] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 播放语音播报
+  const handlePlaySpeech = async () => {
+    if (isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    const page = currentComicBook.pages[currentPageIndex];
+    const narrationText = page.narration || '';
+    const dialogueText = page.dialogue?.map(d => typeof d === 'string' ? d : d.text).join('。') || '';
+    const fullText = `${narrationText}。${dialogueText}`.trim();
+
+    if (!fullText) return;
+
+    setIsPlaying(true);
+    try {
+      const response = await fetch('/api/audio/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: fullText }),
+      });
+      const result = await response.json();
+      if (result.success && result.data.audioUrl) {
+        if (!audioRef.current) {
+          audioRef.current = new Audio();
+        }
+        audioRef.current.src = result.data.audioUrl;
+        audioRef.current.onended = () => setIsPlaying(false);
+        audioRef.current.play();
+      } else {
+        alert('语音合成失败');
+        setIsPlaying(false);
+      }
+    } catch (error) {
+      console.error('语音播报错误:', error);
+      setIsPlaying(false);
+    }
+  };
 
   // 保存绘本修改
   const handleSaveBookChanges = async () => {
@@ -267,6 +311,19 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
               </button>
             )}
             <button
+              onClick={handlePlaySpeech}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold ${
+                isPlaying 
+                  ? 'bg-primary-50 border-primary-200 text-primary-600 animate-pulse' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200'
+              }`}
+              title={isPlaying ? "停止播放" : "语音点读"}
+            >
+              {isPlaying ? <Volume2 size={18} /> : <Play size={18} />}
+              <span>{isPlaying ? "正在播放" : "语音点读"}</span>
+            </button>
+            <div className="w-px h-6 bg-slate-100 mx-1"></div>
+            <button
               onClick={handleDownloadCurrentPage}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold"
               title="导出当前页"
@@ -298,15 +355,15 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
         {/* 绘本展示核心区 */}
         <div className="relative group flex flex-col lg:flex-row gap-8">
           <div className="flex-1 bg-white rounded-[3rem] shadow-2xl shadow-slate-200/50 p-4 md:p-8 lg:p-10 border border-slate-100 relative">
-            {currentPage ? (
+          {currentPage ? (
               <div className="flex flex-col items-center max-w-5xl mx-auto space-y-8">
                 <div className="w-full relative rounded-2xl overflow-hidden shadow-2xl shadow-primary-500/10 border border-slate-100 bg-slate-50">
-                  <ComicPageCanvas
-                    ref={(ref) => registerCanvasRef(currentPageIndex, ref)}
-                    page={currentPage}
+              <ComicPageCanvas
+                ref={(ref) => registerCanvasRef(currentPageIndex, ref)}
+                page={currentPage}
                     className="w-full h-auto"
-                  />
-                  
+              />
+              
                   {/* 编辑模式下的交互层 */}
                   {isEditing && (
                     <div 
@@ -463,8 +520,8 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
                     <p className="text-[10px] font-bold text-amber-700 leading-relaxed">
                         💡 提示：选中气泡后，可以直接点击左侧画面中的位置进行平移。
                     </p>
-                </div>
               </div>
+            </div>
             </div>
           )}
         </div>
