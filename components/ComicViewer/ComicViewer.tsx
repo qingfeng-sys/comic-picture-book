@@ -6,6 +6,7 @@ import ComicPageCanvas, { ComicPageCanvasRef } from '@/components/ComicPageCanva
 import { downloadCanvasesAsZip } from '@/lib/downloadUtils';
 import { saveComicBookToStorage } from '@/lib/scriptUtils';
 import { renderComicPageToCanvas } from '@/lib/comicPageRenderer';
+import { FEATURE_FLAGS } from '@/lib/config/features';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -310,18 +311,20 @@ export default function ComicViewer({ comicBook, onBack, onComicBookUpdate, isLo
                 <span>取消</span>
               </button>
             )}
-            <button
-              onClick={handlePlaySpeech}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold ${
-                isPlaying 
-                  ? 'bg-primary-50 border-primary-200 text-primary-600 animate-pulse' 
-                  : 'bg-white border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200'
-              }`}
-              title={isPlaying ? "停止播放" : "语音点读"}
-            >
-              {isPlaying ? <Volume2 size={18} /> : <Play size={18} />}
-              <span>{isPlaying ? "正在播放" : "语音点读"}</span>
-            </button>
+            {FEATURE_FLAGS.ENABLE_SPEECH && (
+              <button
+                onClick={handlePlaySpeech}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border transition-all shadow-sm hover:shadow-md active:scale-95 text-sm font-bold ${
+                  isPlaying 
+                    ? 'bg-primary-50 border-primary-200 text-primary-600 animate-pulse' 
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200'
+                }`}
+                title={isPlaying ? "停止播放" : "语音点读"}
+              >
+                {isPlaying ? <Volume2 size={18} /> : <Play size={18} />}
+                <span>{isPlaying ? "正在播放" : "语音点读"}</span>
+              </button>
+            )}
             <div className="w-px h-6 bg-slate-100 mx-1"></div>
             <button
               onClick={handleDownloadCurrentPage}

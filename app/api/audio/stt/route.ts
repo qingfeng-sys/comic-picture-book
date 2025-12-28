@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dashscopeSTT } from '@/lib/providers/dashscope/audio';
 import { withApiProtection } from '@/lib/security/withApiProtection';
 import { maskServerError } from '@/lib/apiAuth';
+import { FEATURE_FLAGS } from '@/lib/config/features';
 
 async function postHandler(request: NextRequest) {
   try {
+    // 功能开关校验
+    if (!FEATURE_FLAGS.ENABLE_SPEECH) {
+      return NextResponse.json({ success: false, error: '语音功能开发中，暂未启用' }, { status: 503 });
+    }
+
     const { audioUrl } = await request.json();
     if (!audioUrl) {
       return NextResponse.json({ success: false, error: '缺少音频URL' }, { status: 400 });

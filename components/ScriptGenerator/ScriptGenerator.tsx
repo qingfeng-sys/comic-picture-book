@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChatMessage, StoryboardData, Script, CharacterProfile } from '@/types';
 import ChatInterface from '../ChatInterface/ChatInterface';
+import { FEATURE_FLAGS } from '@/lib/config/features';
 import { 
   Sparkles, 
   FileText, 
@@ -143,24 +144,37 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
 
   const startRecording = async () => {
     try {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        throw new Error('浏览器不支持语音录入功能');
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
 
-      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      
       recorder.onstop = async () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
         // 实际场景：上传 blob -> 获取 URL -> 调用 /api/audio/stt
+        console.log('[STT] 录音完成，音频大小:', blob.size);
         alert('语音录入功能已开启（后端已支持 SenseVoice），需集成 OSS 上传后即可实时转文字。');
         stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.onerror = (e) => {
+        console.error('[STT] 录音发生错误:', e);
+        stopRecording();
       };
 
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('无法启动录音:', err);
-      alert('请允许麦克风访问权限');
+      alert(err.message || '请允许麦克风访问权限');
+      setIsRecording(false);
     }
   };
 
@@ -349,17 +363,19 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
                 <MessageSquare size={14} className="text-primary-500" />
                 <span>灵感描述 (Inspiration)</span>
               </label>
-              <button
-                onClick={isRecording ? stopRecording : startRecording}
-                className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                  isRecording 
-                    ? 'bg-red-50 text-red-500 animate-pulse border border-red-100' 
-                    : 'bg-primary-50 text-primary-600 hover:bg-primary-100 border border-primary-100'
-                }`}
-              >
-                {isRecording ? <MicOff size={12} /> : <Mic size={12} />}
-                <span>{isRecording ? '正在倾听...' : '语音录入'}</span>
-              </button>
+              {FEATURE_FLAGS.ENABLE_SPEECH && (
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                    isRecording 
+                      ? 'bg-red-50 text-red-500 animate-pulse border border-red-100' 
+                      : 'bg-primary-50 text-primary-600 hover:bg-primary-100 border border-primary-100'
+                  }`}
+                >
+                  {isRecording ? <MicOff size={12} /> : <Mic size={12} />}
+                  <span>{isRecording ? '正在倾听...' : '语音录入'}</span>
+                </button>
+              )}
             </div>
             <textarea
               value={initialPrompt}
