@@ -1,7 +1,7 @@
 {
   "name": "comic-picture-book",
   "version": "1.0.0",
-  "description": "漫画绘本创作应用",
+  "description": "漫画绘本创作工坊",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",

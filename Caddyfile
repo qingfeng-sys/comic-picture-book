@@ -1,76 +1,42 @@
-# syntax=docker/dockerfile:1
-FROM node:20-alpine AS base
+{
+    # 全局配置
+    email {$ADMIN_EMAIL}
+}
 
-# 1. 安装依赖
-FROM base AS deps
-RUN apk add --no-cache libc6-compat curl
-WORKDIR /app
+# 你的域名
+{$DOMAIN} {
+    # 反向代理到 app 服务的 3000 端口
+    reverse_proxy app:3000
 
-# #region agent log
-# 验证 Hypothesis A (Node Version) 和 Hypothesis B (Prisma Schema Existence)
-RUN node -v > /tmp/node_ver && \
-    (ls -R prisma/schema.prisma > /tmp/prisma_check 2>&1 || echo "missing" > /tmp/prisma_check) && \
-    curl -X POST -H "Content-Type: application/json" -d "{ \
-      \"location\": \"Dockerfile:deps\", \
-      \"message\": \"Build environment check\", \
-      \"data\": { \
-        \"nodeVersion\": \"$(cat /tmp/node_ver)\", \
-        \"prismaSchema\": \"$(cat /tmp/prisma_check)\" \
-      }, \
-      \"sessionId\": \"debug-session\", \
-      \"hypothesisId\": \"A,B\" \
-    }" http://127.0.0.1:7242/ingest/f65876b8-d369-406a-9a51-3ce638039e4e || true
-# #endregion
+    # 压缩支持
+    encode gzip zstd
 
-COPY package*.json ./
-# 关键修复：在 npm ci 之前拷贝 prisma 目录
-COPY prisma ./prisma/
+    # 安全头
+    header {
+        # 禁用 FLoC 追踪
+        Permissions-Policy interest-cohort=()
+        # 严格传输安全
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # 跨向访问
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer-when-downgrade
+    }
 
-RUN npm ci
+    # 静态资源缓存（Next.js 静态文件）
+    handle_path /_next/static/* {
+        header Cache-Control "public, max-age=31536000, immutable"
+        reverse_proxy app:3000
+    }
 
-# 2. 构建阶段
-FROM base AS builder
-RUN apk add --no-cache curl
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+    # 资产文件缓存
+    handle_path /comic-assets/* {
+        header Cache-Control "public, max-age=604800"
+        reverse_proxy app:3000
+    }
 
-# #region agent log
-RUN curl -X POST -H "Content-Type: application/json" -d "{ \
-      \"location\": \"Dockerfile:builder\", \
-      \"message\": \"Prisma generation starting\", \
-      \"sessionId\": \"debug-session\", \
-      \"hypothesisId\": \"B\" \
-    }" http://127.0.0.1:7242/ingest/f65876b8-d369-406a-9a51-3ce638039e4e || true
-# #endregion
+    log {
+        output file /data/access.log
+    }
+}
 
-RUN npx prisma generate
-
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-
-RUN npm run build
-
-# 3. 运行阶段
-FROM base AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/prisma ./prisma
-
-USER nextjs
-
-EXPOSE 3000
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
-
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
