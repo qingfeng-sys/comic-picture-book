@@ -19,6 +19,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# 确保 public 目录及其子目录存在，防止构建失败
+RUN mkdir -p public/comic-assets
 RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
