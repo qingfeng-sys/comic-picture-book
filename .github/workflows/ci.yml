@@ -71,8 +71,9 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
             cd /opt/comic-book
-            # 更新镜像标签（使用当前 commit sha 或直接用 latest）
-            sed -i "s|postgres:v.*|postgres:latest|g" docker-compose.prod.yml
-            docker compose --env-file .env.prod pull app
-            docker compose --env-file .env.prod up -d app
+            # 更新镜像标签（无论旧标签是什么，都统一换成 latest）
+            sed -i "s|postgres:.*|postgres:latest|g" docker-compose.prod.yml
+            # 必须显式指定生产环境的配置文件名
+            docker compose --env-file .env.prod -f docker-compose.prod.yml pull app
+            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
             docker image prune -f
