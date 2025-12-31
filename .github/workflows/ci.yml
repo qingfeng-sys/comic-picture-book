@@ -71,9 +71,9 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
             cd /opt/comic-book
-            # 更新镜像标签（无论旧标签是什么，都统一换成 latest）
-            sed -i "s|postgres:.*|postgres:latest|g" docker-compose.prod.yml
-            # 必须显式指定生产环境的配置文件名
+            # 精确匹配：只替换包含阿里云 ACR 仓库完整路径的镜像标签，确保不误伤本地数据库镜像
+            sed -i "s|crpi-5xovm79bminb7wmr.cn-beijing.personal.cr.aliyuncs.com/comic-db/postgres:.*|crpi-5xovm79bminb7wmr.cn-beijing.personal.cr.aliyuncs.com/comic-db/postgres:latest|g" docker-compose.prod.yml
+            # 显式指定生产环境配置文件
             docker compose --env-file .env.prod -f docker-compose.prod.yml pull app
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
             docker image prune -f
