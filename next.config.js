@@ -30,6 +30,9 @@ const nextConfig = {
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
     QINIU_API_KEY: process.env.QINIU_API_KEY,
   },
+
+  // 修复 pino/thread-stream 在构建时的扫描报错
+  serverExternalPackages: ['pino', 'thread-stream'],
 }
 
 module.exports = nextConfig

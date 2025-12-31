@@ -198,28 +198,25 @@ export async function submitWanImageTask(prompt: string, options: WanSubmitOptio
 
 export async function getWanTaskResult(taskId: string): Promise<WanTaskResult> {
   const apiKey = resolveWanApiKey();
-  const headers = {
-    Authorization: `Bearer ${apiKey}`,
-  };
+  const headers = { Authorization: `Bearer ${apiKey}` };
 
   const response = await http.get(`/tasks/${taskId}`, { headers });
   const data = response.data || {};
   const output = data.output || data.data || {};
 
-  const status =
-    output.task_status ||
-    output.status ||
-    data.status ||
-    data.task_status;
+  // 1. 状态提取
+  const status = (output.task_status || output.status || data.status || "").toLowerCase();
 
+  // 2. 深度扫描所有可能的图片字段（Wan 2.1 - 2.6 全兼容）
   const imageUrl =
-    output.choices?.[0]?.message?.content?.[0]?.image ||
-    output.results?.[0]?.url ||
+    output.choices?.[0]?.message?.content?.[0]?.image || // Wan 2.6
+    output.results?.[0]?.url ||                          // Wan 2.5/2.1
     output.results?.[0]?.image_url ||
     output.image_url ||
+    data.output?.results?.[0]?.url ||
     data.image_url;
 
-  const message = output.message || data.message;
+  const message = output.message || data.message || "未知错误";
 
   return { status, imageUrl, message };
 }

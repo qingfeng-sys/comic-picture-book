@@ -47,7 +47,7 @@ export const authOptions: NextAuthOptions = {
           username: user.username,
           nickname: user.nickname,
           image: user.avatar,
-        };
+        } as any; // 暂时使用 any 规避 NextAuth 内部 User 接口的严格限制
       },
     }),
   ],
