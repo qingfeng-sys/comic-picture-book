@@ -1,36 +1,37 @@
 {
-    # 全局配置
-    email {$ADMIN_EMAIL}
+    # 全局配置：填写你的邮箱，用于接收 SSL 证书过期通知
+    email 1358140242@qq.com
 }
 
 # 你的域名
-{$DOMAIN} {
+qggeum.com, www.qggeum.com {
     # 反向代理到 app 服务的 3000 端口
-    reverse_proxy app:3000
+    reverse_proxy app:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
 
     # 压缩支持
     encode gzip zstd
 
     # 安全头
     header {
-        # 禁用 FLoC 追踪
         Permissions-Policy interest-cohort=()
-        # 严格传输安全
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        # 跨向访问
         X-Content-Type-Options nosniff
         X-Frame-Options DENY
         Referrer-Policy no-referrer-when-downgrade
     }
 
-    # 静态资源缓存（Next.js 静态文件）
-    handle_path /_next/static/* {
+    # 优化：针对静态资源的缓存配置（改用 handle 而非 handle_path）
+    handle /_next/static/* {
         header Cache-Control "public, max-age=31536000, immutable"
         reverse_proxy app:3000
     }
 
-    # 资产文件缓存
-    handle_path /comic-assets/* {
+    handle /comic-assets/* {
         header Cache-Control "public, max-age=604800"
         reverse_proxy app:3000
     }
@@ -39,4 +40,3 @@
         output file /data/access.log
     }
 }
-
