@@ -74,6 +74,11 @@ jobs:
             # 精确匹配：只替换包含阿里云 ACR 仓库完整路径的镜像标签，确保不误伤本地数据库镜像
             sed -i "s|crpi-5xovm79bminb7wmr.cn-beijing.personal.cr.aliyuncs.com/comic-db/postgres:.*|crpi-5xovm79bminb7wmr.cn-beijing.personal.cr.aliyuncs.com/comic-db/postgres:latest|g" docker-compose.prod.yml
             # 显式指定生产环境配置文件
+            # 先拉取最新镜像
             docker compose --env-file .env.prod -f docker-compose.prod.yml pull app
+            # 再启动应用
             docker compose --env-file .env.prod -f docker-compose.prod.yml up -d app
+            # 自动执行数据库迁移
+            docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T app npx prisma migrate deploy
+            # 清理未使用的镜像
             docker image prune -f

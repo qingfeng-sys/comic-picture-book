@@ -19,7 +19,6 @@ import {
   Image as ImageIcon, 
   RefreshCw, 
   Users, 
-  Layout, 
   Sparkles, 
   Play,
   Search,
@@ -367,7 +366,7 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
     if (useCharacterReferences) {
       const hasAnyRef = characters.some((c) => !!c.referenceImageUrl);
       if (!hasAnyRef) {
-        alert('已启用“角色参考图”，但当前角色库没有任何立绘。请先点击“同步角色形象”，或关闭该开关后继续生成绘本。');
+        alert('已启用“角色参考图”，但当前角色库没有任何立绘。请先点击“角色形象生成”，或关闭该开关后继续生成绘本。');
         return;
       }
     }
@@ -624,43 +623,12 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
 
           {/* 模型与参考图卡片 */}
           <section className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 p-8 border border-slate-100 space-y-8">
-            {/* 模型选择 */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Layout size={20} className="text-primary-500" />
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">生成模型设定</h3>
-              </div>
-              
-              <div className="relative group">
-                <select
-                  value={generationModel}
-                  onChange={(e) => setGenerationModel(e.target.value as GenerationModel)}
-                  className="w-full p-4 bg-slate-50/50 border border-slate-100 rounded-2xl focus:outline-none focus:bg-white focus:border-primary-400 focus:ring-4 focus:ring-primary-500/5 text-sm font-bold text-slate-700 transition-all appearance-none"
-                >
-                  {MODEL_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-primary-500">
-                  <ChevronDown size={18} />
-                </div>
-              </div>
-              <div className="p-4 bg-primary-50/50 rounded-2xl border border-primary-100/50">
-                <p className="text-[10px] leading-relaxed text-primary-700 font-medium">
-                  <span className="font-black uppercase mr-1">Current Model:</span>
-                  {MODEL_OPTIONS.find((o) => o.value === generationModel)?.description}
-                </p>
-              </div>
-            </div>
-
             {/* 角色一致性控制 */}
-            <div className="space-y-4 border-t border-slate-50 pt-8">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Users size={20} className="text-violet-500" />
-                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">视觉一致性</h3>
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">角色立绘</h3>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -677,7 +645,7 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
                 <div className="space-y-3">
                   <div className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                     <Sparkles size={12} />
-                    立绘同步系统
+                    立绘模型选择
                   </div>
                   <div className="grid grid-cols-1 gap-3">
                     <div className="relative group">
@@ -707,7 +675,7 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
                       ) : (
                         <Wand2 size={18} />
                       )}
-                      <span className="text-sm font-black">同步角色形象</span>
+                      <span className="text-sm font-black">角色形象生成</span>
                     </button>
                   </div>
                 </div>
@@ -835,10 +803,28 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
                   <ImageIcon size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-slate-800 tracking-tight">渲染预览 (Render Engine)</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System Ready</span>
+                  <h3 className="text-xl font-black text-slate-800 tracking-tight">绘本生成 (Comic Generation)</h3>
+                  <div className="flex items-center gap-4 mt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">绘本生成模型选择</span>
+                    </div>
+                    
+                    <div className="relative group flex items-center">
+                      <select
+                        value={generationModel}
+                        onChange={(e) => setGenerationModel(e.target.value as GenerationModel)}
+                        className="pl-2 pr-6 py-0.5 bg-slate-100/80 border-none rounded-full text-[9px] font-black text-slate-500 uppercase tracking-wider appearance-none focus:ring-2 focus:ring-primary-500/20 transition-all cursor-pointer hover:bg-slate-200/80"
+                        title={MODEL_OPTIONS.find(o => o.value === generationModel)?.description}
+                      >
+                        {MODEL_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={10} className="absolute right-1.5 text-slate-400 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
               </div>

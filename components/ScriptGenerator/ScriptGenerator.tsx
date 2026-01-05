@@ -10,7 +10,6 @@ import {
   Send, 
   CheckCircle2, 
   XCircle, 
-  Layout, 
   MessageSquare,
   History,
   Wand2,
@@ -312,49 +311,18 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
 
       {!currentScript ? (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
-                <FileText size={14} className="text-primary-500" />
-                <span>脚本标题（建议填写）</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="例如：小兔子的冒险"
-                className="input-field !rounded-2xl"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
-                <Layout size={14} className="text-primary-500" />
-                <span>输出格式选择</span>
-              </label>
-              <div className="flex bg-slate-100/50 p-1.5 rounded-2xl border border-slate-100">
-                <button
-                  onClick={() => setOutputFormat('storyboard')}
-                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
-                    outputFormat === 'storyboard' 
-                      ? 'bg-white text-primary-600 shadow-md' 
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  结构化分镜
-                </button>
-                <button
-                  onClick={() => setOutputFormat('script')}
-                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
-                    outputFormat === 'script' 
-                      ? 'bg-white text-primary-600 shadow-md' 
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  传统文本
-                </button>
-              </div>
-            </div>
+          <div className="space-y-3">
+            <label className="flex items-center space-x-2 text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+              <FileText size={14} className="text-primary-500" />
+              <span>请输入脚本标题</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例如：小兔子的冒险"
+              className="input-field !rounded-2xl"
+            />
           </div>
 
           <div className="space-y-3">

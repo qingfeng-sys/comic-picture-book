@@ -31,8 +31,14 @@ async function getHandler(request: NextRequest, session: any) {
  * POST /api/script - 保存或更新脚本
  */
 async function postHandler(request: NextRequest, session: any) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/f65876b8-d369-406a-9a51-3ce638039e4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/api/script/route.ts:postHandler',message:'Entering postHandler',data:{userId:session?.user?.id, sessionUser:session?.user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   try {
     const body = await request.json();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f65876b8-d369-406a-9a51-3ce638039e4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/api/script/route.ts:postHandler',message:'Request body parsed',data:{body},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     const result = scriptSchema.safeParse(body);
 
     if (!result.success) {
@@ -40,6 +46,12 @@ async function postHandler(request: NextRequest, session: any) {
     }
 
     const { id, title, content, storyboard } = result.data;
+
+    // Verify user exists in DB before attempt
+    const userInDb = await prisma.user.findUnique({ where: { id: session.user.id } });
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f65876b8-d369-406a-9a51-3ce638039e4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/api/script/route.ts:postHandler',message:'User existence check',data:{userId:session.user.id, exists:!!userInDb},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 
     let script;
     if (id && id.startsWith('script_')) {
@@ -77,7 +89,10 @@ async function postHandler(request: NextRequest, session: any) {
     }
 
     return NextResponse.json({ success: true, data: script });
-  } catch (error) {
+  } catch (error: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f65876b8-d369-406a-9a51-3ce638039e4e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/api/script/route.ts:postHandler',message:'Error saving script',data:{error:error.message, code:error.code, meta:error.meta},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.error("保存脚本失败:", error);
     return NextResponse.json({ success: false, error: "保存脚本失败" }, { status: 500 });
   }
