@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Script, ScriptWithSegments, ComicPage, StoryboardData, ComicBook, GenerationModel, CharacterProfile } from '@/types';
+import { useTasks } from '../Providers/TaskProvider';
 import { getActiveModels } from '@/lib/config/models';
 import {
   createScriptWithSegments,
@@ -81,6 +82,63 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
   const [portraitModel, setPortraitModel] = useState<GenerationModel>('wan2.6-image');
   const [isGeneratingPortraits, setIsGeneratingPortraits] = useState(false);
   const [combinedReferenceImage, setCombinedReferenceImage] = useState<string | undefined>(undefined);
+  
+  const { tasks, startComicTask, startCharacterTask } = useTasks();
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activePortraitTaskId, setActivePortraitTaskId] = useState<string | null>(null);
+
+  // 监听本次点击发起的任务状态
+  useEffect(() => {
+    // 处理绘本任务
+    if (activeTaskId && tasks[activeTaskId]) {
+      const task = tasks[activeTaskId];
+      setGenerationLogs(task.logs);
+      setGenerationProgress(task.progress);
+      
+      if (task.status === 'completed') {
+        if (task.result) {
+          setGeneratedPages(task.result);
+        }
+        setIsGenerating(false);
+        setActiveTaskId(null);
+      } else if (task.status === 'error') {
+        setIsGenerating(false);
+        setActiveTaskId(null);
+      } else if (task.status === 'generating') {
+        if (task.result) {
+          setGeneratedPages(task.result);
+        }
+      }
+    }
+
+    // 处理角色立绘任务
+    if (activePortraitTaskId && tasks[activePortraitTaskId]) {
+      const task = tasks[activePortraitTaskId];
+      if (task.status === 'completed') {
+        const handlePortraitComplete = async () => {
+          const chars: CharacterProfile[] = task.result;
+          for (const c of chars) {
+            await upsertCharacter({
+              ...c,
+              sourceType: 'script',
+              sourceScriptId: task.params.selectedScriptId,
+              sourceScriptTitle: task.params.selectedScriptTitle,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+          await refreshCharacters();
+          setIsGeneratingPortraits(false);
+          setActivePortraitTaskId(null);
+          alert(`角色立绘生成完成：${chars.filter((c) => !!c.referenceImageUrl).length}/${chars.length}`);
+        };
+        handlePortraitComplete();
+      } else if (task.status === 'error') {
+        alert(task.error || '生成角色立绘失败');
+        setIsGeneratingPortraits(false);
+        setActivePortraitTaskId(null);
+      }
+    }
+  }, [activeTaskId, activePortraitTaskId, tasks]);
 
   const scriptRoleNames = useMemo(() => {
     if (!selectedScript) return null;
@@ -186,40 +244,22 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
       alert('请先选择脚本');
       return;
     }
+    
     setIsGeneratingPortraits(true);
+    
     try {
-      // 使用“脚本内容”作为输入，让后端通过大纲/角色表推断并生成立绘
-      const res = await fetch('/api/character/auto-generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: selectedScript.content,
-          model: portraitModel,
-        }),
+      const taskId = await startCharacterTask({
+        prompt: selectedScript.content,
+        model: portraitModel,
+        selectedScriptId: selectedScript.id,
+        selectedScriptTitle: selectedScript.title
       });
-      const json = await res.json();
-      if (!json.success || !Array.isArray(json.data?.characters)) {
-        alert(json.error || '生成角色立绘失败');
-        return;
-      }
-      const chars: CharacterProfile[] = json.data.characters;
-      // 将本次“目标脚本”的信息写入角色库，便于角色库按脚本分组展示
-      for (const c of chars) {
-        await upsertCharacter({
-          ...c,
-          sourceType: 'script',
-          sourceScriptId: selectedScript.id,
-          sourceScriptTitle: selectedScript.title,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-      await refreshCharacters();
-      alert(`角色立绘生成完成：${chars.filter((c) => !!c.referenceImageUrl).length}/${chars.length}`);
-    } catch (e) {
-      console.error(e);
-      alert('生成失败，请检查网络连接');
-    } finally {
+      
+      setActivePortraitTaskId(taskId);
+    } catch (error: any) {
+      console.error('启动角色生成任务失败:', error);
       setIsGeneratingPortraits(false);
+      alert(`启动失败: ${error.message || '未知错误'}`);
     }
   };
 
@@ -401,103 +441,19 @@ export default function ComicGenerator({ onBack, initialScriptId }: ComicGenerat
           ? (await Promise.all(selectedForRef.map((src) => toJpegDataUrlSafe(src)))).filter(Boolean)
           : undefined;
 
-      if (isMultiModalModel && useCharacterReferences && (!referenceImagesToSend || referenceImagesToSend.length === 0)) {
-        console.warn('当前选择的是多模态模型，但未提供有效的参考图');
-      }
-
-      const storyboardData = extractStoryboardFromScript(selectedScript.content);
-      const allPages: ComicPage[] = [];
+      const taskId = await startComicTask({
+        selectedScript,
+        selectedSegmentId,
+        generationModel,
+        characterReferencesToSend,
+        referenceImagesToSend: referenceImagesToSend as string[] | undefined
+      });
       
-      if (storyboardData) {
-        const startFrameIndex = (selectedSegmentId - 1) * 10;
-        const segmentFrames = storyboardData.frames.slice(startFrameIndex, startFrameIndex + 10);
-        
-        if (segmentFrames.length === 0) {
-          throw new Error('该片段没有对应的分镜数据');
-        }
-
-        setGenerationLogs(prev => [...prev, { type: 'info', message: `检测到分镜数据，共 ${segmentFrames.length} 页，准备逐页生成...` }]);
-
-        for (let i = 0; i < segmentFrames.length; i++) {
-          const frame = segmentFrames[i];
-          const pageNumber = (selectedSegmentId - 1) * 10 + i + 1;
-          
-          setGenerationStatus(`正在生成第 ${pageNumber} 页...`);
-          setGenerationLogs(prev => [...prev, { type: 'info', message: `正在生成第 ${pageNumber} 页：${frame.image_prompt.substring(0, 30)}...` }]);
-
-          const response = await fetch('/api/comic/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              storyboard: { frames: [frame] },
-              startPageNumber: pageNumber,
-              scriptId: selectedScript.id,
-              segmentId: selectedSegmentId,
-              model: generationModel,
-              characterReferences: characterReferencesToSend,
-              referenceImages: referenceImagesToSend,
-            }),
-          });
-
-          const result = await response.json();
-          if (result.success && result.data?.pages?.length > 0) {
-            const newPage = result.data.pages[0];
-            allPages.push(newPage);
-            setGeneratedPages([...allPages]);
-            setGenerationProgress(Math.round(((i + 1) / segmentFrames.length) * 100));
-            setGenerationLogs(prev => [...prev, { type: 'success', message: `✅ 第 ${pageNumber} 页生成成功` }]);
-          } else {
-            const errorMsg = result.error || '生成失败';
-            setGenerationLogs(prev => [...prev, { type: 'error', message: `❌ 第 ${pageNumber} 页生成失败: ${errorMsg}` }]);
-            if (!confirm(`第 ${pageNumber} 页生成失败：${errorMsg}。是否跳过此页继续？`)) {
-              break;
-            }
-          }
-        }
-      } else {
-        // 文本模式 (退化处理)
-        setGenerationLogs(prev => [...prev, { type: 'info', message: '未检测到结构化分镜，使用传统模式一次性生成...' }]);
-        const response = await fetch('/api/comic/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            scriptSegment: segment.content,
-            startPageNumber: (selectedSegmentId - 1) * 10 + 1,
-            scriptId: selectedScript.id,
-            segmentId: selectedSegmentId,
-            model: generationModel,
-            characterReferences: characterReferencesToSend,
-            referenceImages: referenceImagesToSend,
-          }),
-        });
-        const result = await response.json();
-        if (result.success && result.data?.pages) {
-          allPages.push(...result.data.pages);
-          setGeneratedPages(allPages);
-          setGenerationProgress(100);
-          setGenerationLogs(prev => [...prev, { type: 'success', message: '✅ 绘本全部生成成功' }]);
-        } else {
-          throw new Error(result.error || '生成失败');
-        }
-      }
-
-      if (allPages.length > 0) {
-        const comicBook = {
-          scriptId: selectedScript.id,
-          segmentId: selectedSegmentId,
-          title: selectedScript.title,
-          pages: allPages,
-        };
-        await saveComicBookToStorage(comicBook);
-        setGenerationLogs(prev => [...prev, { type: 'success', message: '🎉 绘本已完整保存至数据库' }]);
-      }
+      setActiveTaskId(taskId);
     } catch (error: any) {
-      console.error('生成绘本失败:', error);
-      setGenerationLogs(prev => [...prev, { type: 'error', message: `🔥 发生严重错误: ${error.message || '未知错误'}` }]);
-      alert(`生成失败: ${error.message || '网络连接异常'}`);
-    } finally {
+      console.error('启动生成绘本任务失败:', error);
       setIsGenerating(false);
-      setGenerationStatus('');
+      alert(`启动失败: ${error.message || '未知错误'}`);
     }
   };
 

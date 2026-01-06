@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import LoginModal from '@/components/Auth/LoginModal';
 import { useSession, signOut } from 'next-auth/react';
+import { useTasks } from '../Providers/TaskProvider';
 import { 
   Home, 
   Sparkles, 
@@ -19,7 +20,10 @@ import {
   LogOut,
   ChevronDown,
   ChevronUp,
-  Settings2
+  Settings2,
+  X,
+  Bell,
+  Loader2
 } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -31,6 +35,7 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children, currentPage = 'home', onNavigate, onUserChange }: MainLayoutProps) {
   const { data: session, status } = useSession();
+  const { tasks, isAnyTaskGenerating, notifications, removeNotification } = useTasks();
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // 移动端默认关闭
@@ -56,6 +61,16 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
       onUserChange(currentUser || null);
     }
   }, [currentUser, onUserChange]);
+
+  // 自动清理通知：每条通知显示 5 秒后自动消失
+  useEffect(() => {
+    if (notifications.length > 0) {
+      const timer = setTimeout(() => {
+        removeNotification(0); // 自动移除最旧的一条
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notifications, removeNotification]);
 
   const handleLoginSuccess = (user: any) => {
     // signIn 已经在 LoginModal 中处理了，这里只需要关闭 Modal
@@ -118,6 +133,37 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
 
   return (
     <div className="min-h-screen bg-[#f8fafc] relative overflow-hidden font-sans selection:bg-primary-100 selection:text-primary-900">
+      {/* 全局通知 Toast */}
+      <div className="fixed bottom-6 right-6 z-[100] space-y-3">
+        {notifications.map((note, index) => (
+          <div 
+            key={index} 
+            onClick={() => {
+              handleMenuClick('my-works');
+              removeNotification(index);
+            }}
+            className="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-10 duration-300 cursor-pointer hover:bg-slate-800 transition-colors group"
+          >
+            <div className="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Bell size={16} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold tracking-wide">{note}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">点击查看作品</p>
+            </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation(); // 防止触发跳转
+                removeNotification(index);
+              }} 
+              className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <X size={16} className="text-slate-400" />
+            </button>
+          </div>
+        ))}
+      </div>
+
       {/* 极简背景装饰 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-primary-100/30 rounded-full blur-[120px] animate-float"></div>
@@ -274,7 +320,20 @@ export default function MainLayout({ children, currentPage = 'home', onNavigate,
           </nav>
 
           {/* 底部帮助或设置入口 */}
-          <div className="p-4 border-t border-slate-100">
+          <div className="p-4 border-t border-slate-100 space-y-4">
+            {isAnyTaskGenerating && (
+              <div className={`flex items-center ${isSidebarOpen ? 'px-3' : 'justify-center'} py-2.5 bg-primary-50 rounded-xl text-primary-600 border border-primary-100/50`}>
+                <Loader2 size={18} className="animate-spin" />
+                {isSidebarOpen && (
+                  <div className="ml-3 overflow-hidden">
+                    <p className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">后台生成中...</p>
+                    <div className="h-1 bg-primary-200 rounded-full mt-1 overflow-hidden">
+                      <div className="h-full bg-primary-600 animate-pulse w-1/2"></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className={`flex items-center ${isSidebarOpen ? 'px-3' : 'justify-center'} py-2 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors`}>
               <Settings2 size={20} />
               {isSidebarOpen && <span className="ml-3 text-sm font-medium">系统设置</span>}

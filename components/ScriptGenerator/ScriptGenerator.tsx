@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ChatMessage, StoryboardData, Script, CharacterProfile } from '@/types';
 import ChatInterface from '../ChatInterface/ChatInterface';
 import { FEATURE_FLAGS } from '@/lib/config/features';
+import { useTasks } from '../Providers/TaskProvider';
 import { 
   Sparkles, 
   FileText, 
@@ -43,6 +44,9 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
+  const { tasks, startScriptTask, isAnyTaskGenerating } = useTasks();
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+
   // 如果是编辑模式，预填充数据
   useEffect(() => {
     if (initialScript) {
@@ -51,54 +55,15 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
     }
   }, [initialScript]);
 
-  // 组件卸载时清理生成状态
+  // 监听本次操作发起的任务状态
   useEffect(() => {
-    return () => {
-      if (isGenerating) {
-        console.warn('[组件卸载] ScriptGenerator 在生成过程中被卸载');
-        onGeneratingChange?.(false);
-      }
-    };
-  }, [isGenerating, onGeneratingChange]);
-
-  const handleInitialGenerate = async () => {
-    if (!initialPrompt.trim()) {
-      alert('请输入故事描述');
-      return;
-    }
-
-    console.log('开始生成脚本，当前状态:', { isGenerating, currentScript: currentScript ? '有内容' : '无内容' });
-    setIsGenerating(true);
-    onGeneratingChange?.(true); // 通知父组件生成开始
-    
-    try {
-      console.log('发送API请求...');
-      const response = await fetch('/api/script/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: initialPrompt,
-          outputFormat: outputFormat, // 传递输出格式
-          characterProfiles: characters?.map(p => ({
-            id: p.id,
-            name: p.name,
-            role: p.role,
-            description: p.description,
-            visual: p.visual
-          }))
-        }),
-      });
-
-      console.log('收到API响应');
-      const result = await response.json();
-      console.log('API响应结果:', result.success ? '成功' : '失败');
-
-      if (result.success) {
-        if (outputFormat === 'storyboard' && result.data?.storyboard) {
-          // 处理分镜数据（新格式：StoryboardData包含frames字段）
-          const storyboardData: StoryboardData = result.data.storyboard;
+    if (activeTaskId && tasks[activeTaskId]) {
+      const task = tasks[activeTaskId];
+      if (task.status === 'completed') {
+        const result = task.result;
+        if (result.storyboard) {
+          const storyboardData: StoryboardData = result.storyboard;
           setCurrentStoryboard(storyboardData);
-          // 将分镜转换为文本格式用于显示和保存
           const scriptText = storyboardData.frames.map(frame => {
             let text = `第${frame.frame_id}帧：\n`;
             text += `[场景：${frame.image_prompt}]\n`;
@@ -114,31 +79,51 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
           }).join('\n\n');
           setCurrentScript(scriptText);
           setConversationHistory([
-            { role: 'user', content: initialPrompt, timestamp: new Date().toISOString() },
+            { role: 'user', content: task.params.prompt, timestamp: new Date(task.startTime).toISOString() },
             { role: 'assistant', content: `已生成${storyboardData.frames.length}个分镜帧`, timestamp: new Date().toISOString() },
           ]);
-        } else if (result.data?.script) {
-          // 处理传统脚本格式
-          const script = result.data.script;
+        } else if (result.script) {
+          const script = result.script;
           setCurrentScript(script);
           setCurrentStoryboard(null);
           setConversationHistory([
-            { role: 'user', content: initialPrompt, timestamp: new Date().toISOString() },
+            { role: 'user', content: task.params.prompt, timestamp: new Date(task.startTime).toISOString() },
             { role: 'assistant', content: script, timestamp: new Date().toISOString() },
           ]);
-        } else {
-          alert(result.error || '生成失败：未返回有效数据');
         }
-      } else {
-        alert(result.error || '生成失败');
+        setIsGenerating(false);
+        onGeneratingChange?.(false);
+        setActiveTaskId(null);
+      } else if (task.status === 'error') {
+        alert(task.error || '生成失败');
+        setIsGenerating(false);
+        onGeneratingChange?.(false);
+        setActiveTaskId(null);
       }
-    } catch (error) {
-      console.error('生成脚本失败:', error);
-      alert('生成失败，请检查网络连接');
-    } finally {
-      setIsGenerating(false);
-      onGeneratingChange?.(false); // 通知父组件生成结束
     }
+  }, [activeTaskId, tasks, onGeneratingChange]);
+
+  const handleInitialGenerate = async () => {
+    if (!initialPrompt.trim()) {
+      alert('请输入故事描述');
+      return;
+    }
+
+    const scriptTitle = title.trim() || `故事脚本_${new Date().toLocaleDateString()}`;
+    setTitle(scriptTitle);
+
+    console.log('开始生成脚本任务...');
+    setIsGenerating(true);
+    onGeneratingChange?.(true);
+    
+    const taskId = await startScriptTask({
+      prompt: initialPrompt,
+      title: scriptTitle,
+      outputFormat: outputFormat,
+      characterProfiles: characters
+    });
+    
+    setActiveTaskId(taskId);
   };
 
   const startRecording = async () => {
@@ -452,4 +437,3 @@ export default function ScriptGenerator({ onScriptComplete, onCancel, initialScr
     </div>
   );
 }
-

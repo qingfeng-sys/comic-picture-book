@@ -10,6 +10,7 @@ import CharacterLibrary from '@/components/CharacterLibrary/CharacterLibrary';
 import { saveScriptToStorage, loadScriptsFromStorage, loadComicBooksFromStorage, deleteComicBookFromStorage, deleteScriptFromStorage, saveComicBookToStorage } from '@/lib/scriptUtils';
 import { loadCharactersFromStorage } from '@/lib/characterUtils';
 import { useSession } from 'next-auth/react';
+import { useTasks } from '@/components/Providers/TaskProvider';
 import { Script, ComicBook, CharacterProfile } from '@/types';
 import { 
   Sparkles, 
@@ -44,7 +45,7 @@ export default function Home() {
   const [characters, setCharacters] = useState<CharacterProfile[]>([]);
   const [editingScript, setEditingScript] = useState<Script | null>(null);
   const [viewingComicBook, setViewingComicBook] = useState<ComicBook | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false); // 添加生成状态锁
+  const { isAnyTaskGenerating } = useTasks();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [worksTab, setWorksTab] = useState<'scripts' | 'comics'>('comics');
   const [pendingScriptId, setPendingScriptId] = useState<string | null>(null);
@@ -144,13 +145,11 @@ export default function Home() {
 
   const handleNavigation = (page: string) => {
     // 记录所有导航请求，用于调试
-    console.log('[导航] 请求跳转到:', page, '当前页面:', viewMode, '生成中:', isGenerating, '时间:', new Date().toISOString());
+    console.log('[导航] 请求跳转到:', page, '当前页面:', viewMode, '时间:', new Date().toISOString());
     
-    // 如果正在生成，阻止所有导航（除了取消操作）
-    if (isGenerating && page !== viewMode) {
-      console.warn('[导航阻止] 生成中，阻止跳转到:', page);
-      alert('正在生成中，请稍候...');
-      return;
+    // 如果正在生成，不再阻止导航，而是允许在后台运行
+    if (isAnyTaskGenerating) {
+      console.info('[导航] 正在生成中，将转入后台继续运行');
     }
     
     // 防止在脚本生成过程中意外跳转
@@ -224,7 +223,7 @@ export default function Home() {
         <ScriptGenerator
           onScriptComplete={handleScriptComplete}
           onCancel={() => {
-            if (!isGenerating) {
+            if (!isAnyTaskGenerating) {
               setEditingScript(null);
               setViewMode('home');
             } else {
@@ -234,7 +233,6 @@ export default function Home() {
           // 仅在显式“编辑故事脚本”模式下才带入 initialScript
           initialScript={viewMode === 'edit' ? editingScript : null}
           characters={characters}
-          onGeneratingChange={setIsGenerating}
         />
       </MainLayout>
     );
